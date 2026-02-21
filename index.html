@@ -1359,14 +1359,14 @@ document.addEventListener('click',()=>initAudio(),{once:true});
 
   /* ── Firebase Config (Platzhalter ersetzen!) ─────────── */
   const firebaseConfig = {
-    apiKey:            "{{API_KEY}}",
-    authDomain:        "{{AUTH_DOMAIN}}",
-    projectId:         "{{PROJECT_ID}}",
-    storageBucket:     "{{STORAGE_BUCKET}}",
-    messagingSenderId: "{{MSG_SENDER_ID}}",
-    appId:             "{{APP_ID}}",
-    measurementId:     "{{MEASUREMENT_ID}}"
-  };
+  apiKey: "AIzaSyAmnFHu_n3Mjmic9WpaSncsK7BvxxyKWHQ",
+  authDomain: "coolpizzatacos-web.firebaseapp.com",
+  projectId: "coolpizzatacos-web",
+  storageBucket: "coolpizzatacos-web.firebasestorage.app",
+  messagingSenderId: "67801522521",
+  appId: "1:67801522521:web:097267b7fcb3624e16ec48",
+  measurementId: "G-VE3CZ0X34T"
+};
 
   /* ── Init (einmalig, doppelte Initialisierung verhindert) */
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
