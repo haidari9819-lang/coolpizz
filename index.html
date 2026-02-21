@@ -1390,5 +1390,47 @@ document.addEventListener('click',()=>initAudio(),{once:true});
     console.warn("Kein Formular mit id='order-form' gefunden.");
   }
 </script>
+  <!-- TEMP: Test-Order-Button, um Firestore-Schreiben zu prüfen -->
+<button id="test-order" style="position:fixed;bottom:16px;right:16px;z-index:9999">
+  Testbestellung senden
+</button>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, serverTimestamp }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzSayAnmFhu_n3Mjinc9WpaSncsK7BvxxykWHQ",
+    authDomain: "coolpizzatacos-web.firebaseapp.com",
+    projectId: "coolpizzatacos-web",
+    storageBucket: "coolpizzatacos-web.firebasestorage.app",
+    messagingSenderId: "67081255221",
+    appId: "1:67081255221:web:b4e754cf4891d37616ec48",
+    measurementId: "G-5M4KJHR25D"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  const btn = document.getElementById('test-order');
+  btn?.addEventListener('click', async () => {
+    try {
+      await addDoc(collection(db, 'orders'), {
+        items: [{ name: 'TEST Margherita', qty: 1, price: 9.9 }],
+        name: 'Testkunde',
+        phone: '0000',
+        address: 'Teststraße 1',
+        notes: 'Demo',
+        total: 9.9,
+        status: 'new',
+        createdAt: serverTimestamp()
+      });
+      alert('Testbestellung gespeichert ✅');
+    } catch (e) {
+      console.error('Testbestellung FEHLER:', e);
+      alert('Fehler beim Test-Schreiben. Details in Console.');
+    }
+  });
+</script>
 </body>
 </html>
