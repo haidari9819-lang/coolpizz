@@ -1542,17 +1542,21 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 
+/* =============================================
+   INIT
+============================================= */
+document.addEventListener('click',()=>initAudio(),{once:true});
+initAuth();
+</script>
+
 <script type="module">
   import { initializeApp, getApps, getApp }
     from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import {
-    getFirestore, collection, addDoc, serverTimestamp,
-    onSnapshot, query, orderBy, limit
-  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-  import {
-    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-    signOut, onAuthStateChanged, updatePassword
-  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+  import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+           signOut, onAuthStateChanged, updatePassword }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
   /* ── Firebase Config ───────────────────────────────── */
   const firebaseConfig = {
@@ -1569,105 +1573,6 @@ function toast(msg){
   const fbApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
   const db    = getFirestore(fbApp);
   const auth  = getAuth(fbApp);
-
-  /* ── Fallbacks für Datenhaltung & Rendering (nicht invasiv) ──
-     Werden nur benutzt, wenn du keine eigenen Funktionen/States definiert hast.
-  */
-  window.orders = window.orders || [];
-
-  window.processNewOrder = window.processNewOrder || function (o) {
-    const idx = window.orders.findIndex(x => x.id === o.id);
-    if (idx >= 0) window.orders[idx] = o;     // Update
-    else window.orders.unshift(o);            // Neu (oben einfügen)
-  };
-
-  window.renderDash = window.renderDash || function () {
-    const list = document.getElementById('orders');
-    if (!list) {
-      console.warn('[DASH] Kein #orders Element gefunden – Rendering übersprungen.');
-      return;
-    }
-    list.innerHTML = '';
-    for (const o of window.orders) {
-      const idPart   = o.id ? `#${o.id}` : '(ohne Nr.)';
-      const namePart = o.name ?? '';
-      const status   = o.status ?? 'neu';
-      const total    = (typeof o.total === 'number') ? o.total.toFixed(2) : (o.total ?? '');
-      const when     = o.tsStr ?? '';
-      const li = document.createElement('li');
-      li.textContent = `${idPart} — ${namePart} — ${status} — ${total} € — ${when}`;
-      list.appendChild(li);
-    }
-  };
-
-  /* ── Firestore: Neue Bestellungen in Echtzeit empfangen ── */
-  let unsubscribeOrders = null;
-
-  // Dokument -> Objekt (vereinheitlicht)
-  function mapDoc(doc) {
-    const d = doc.data();
-    return {
-      id:       d.orderId || ('FS-' + doc.id.slice(0,6).toUpperCase()),
-      name:     d.name    || '—',
-      tel:      d.phone   || d.tel || '',
-      addr:     d.address || '',
-      note:     d.notes   || '',
-      payment:  d.payment || 'bar',
-      items:    (d.items  || []).map(i => ({
-                  name: i.name || '', desc: i.desc || '', e: i.e || '🍽️',
-                  size: i.size || '', catName: i.catName || '',
-                  price: Number(i.price) || 0, qty: Number(i.qty) || 1,
-                  subtotal: Number(i.subtotal) || +(Number(i.price) * Number(i.qty)).toFixed(2)
-                })),
-      total:    Number(d.total)  || 0,
-      delFee:   Number(d.delFee) || 0,
-      freeDelivery: !!d.freeDelivery,
-      status:   d.status ?? 'neu',
-      ts:       d.createdAt?.toDate ? d.createdAt.toDate() : new Date(),
-      tsStr:    d.createdAt?.toDate
-                  ? d.createdAt.toDate().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
-                  : new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
-    };
-  }
-
-  function startFirestoreListener(){
-    if (unsubscribeOrders) return; // bereits aktiv
-
-    // Deine ursprüngliche Query: nur die neuesten 50, sortiert nach createdAt
-    const qRef = query(collection(db, 'orders'), orderBy('createdAt','desc'), limit(50));
-
-    unsubscribeOrders = onSnapshot(qRef, (snapshot) => {
-      // 1) Erstes vollständiges Bild (alle aktuell sichtbaren Docs)
-      const all = snapshot.docs.map(mapDoc);
-      window.orders = all;                 // ersetze Liste
-      window.renderDash();
-
-      // 2) Dann inkrementelle Änderungen (added/modified/removed)
-      snapshot.docChanges().forEach(change => {
-        const o = mapDoc(change.doc);
-
-        if (change.type === 'added' || change.type === 'modified') {
-          const i = window.orders.findIndex(x => x.id === o.id);
-          if (i >= 0) window.orders[i] = o;
-          else window.orders.unshift(o);
-        }
-
-        if (change.type === 'removed') {
-          window.orders = window.orders.filter(x => x.id !== o.id);
-        }
-      });
-
-      window.renderDash();
-    }, (err) => {
-      console.error('[Firebase] Firestore onSnapshot Fehler:', err.code, err.message);
-    });
-
-    console.info('[Firebase] ✅ Firestore Echtzeit-Listener aktiv');
-  }
-
-  function stopFirestoreListener(){
-    if (unsubscribeOrders) { unsubscribeOrders(); unsubscribeOrders = null; }
-  }
 
   /* ── Firebase Auth: Registrieren ─────────────────── */
   window.fbRegister = async function(email, password){
@@ -1696,10 +1601,10 @@ function toast(msg){
       console.error('[Firebase] Login Fehler:', e.code, e.message);
       const msg = {
         'auth/invalid-credential':   '❌ E-Mail oder Passwort falsch!',
-        'auth/user-not-found':       '❌ Kein Konto mit dieser E-Mail!',
-        'auth/wrong-password':       '❌ Falsches Passwort!',
-        'auth/too-many-requests':    '❌ Zu viele Versuche. Bitte warte kurz.',
-        'auth/invalid-email':        '❌ Ungültige E-Mail-Adresse!'
+        'auth/user-not-found':        '❌ Kein Konto mit dieser E-Mail!',
+        'auth/wrong-password':        '❌ Falsches Passwort!',
+        'auth/too-many-requests':     '❌ Zu viele Versuche. Bitte warte kurz.',
+        'auth/invalid-email':         '❌ Ungültige E-Mail-Adresse!'
       }[e.code] || '❌ ' + e.message;
       return { ok: false, msg };
     }
@@ -1725,7 +1630,7 @@ function toast(msg){
 
   /* ── Auth State: Session persistent ──────────────── */
   onAuthStateChanged(auth, (user) => {
-    if (user) {
+    if(user){
       console.info('[Firebase] Auth Session aktiv:', user.email);
       startFirestoreListener();
     } else {
@@ -1733,8 +1638,92 @@ function toast(msg){
     }
   });
 
+  /* ── Firestore Listener fürs Dashboard ───────────────────────── */
+  let __unsubOrders = null;   // hält die laufende Subscription
+
+  // Mini-Renderer: passt <ul id="orders"> an.
+  // Wenn du Karten/Buttons hast, ersetze das Rendering nach deinem Layout.
+  function renderOrders(docs) {
+    const list = document.getElementById('orders');
+    if (!list) return; // falls Element noch nicht existiert
+    list.innerHTML = '';
+    for (const o of docs) {
+      const li = document.createElement('li');
+      const idPart   = o.orderId ? `#${o.orderId}` : '(ohne Nr.)';
+      const namePart = o.name ?? '';
+      const status   = o.status ?? 'new';
+      const total    = typeof o.total === 'number' ? o.total.toFixed(2) : (o.total ?? '');
+      li.textContent = `${idPart} — ${namePart} — ${status} — ${total} €`;
+      list.appendChild(li);
+    }
+  }
+
+  // START: robust – zeigt auch alte Bestellungen ohne createdAt
+  window.startFirestoreListener = function startFirestoreListener() {
+    try {
+      // Falls schon ein Listener läuft, erst stoppen
+      if (__unsubOrders) { __unsubOrders(); __unsubOrders = null; }
+      // 1) Ohne orderBy lesen, damit auch alte Orders ohne createdAt kommen
+      // 2) Danach clientseitig sortieren: createdAt (neueste zuerst)
+      const ref = collection(db, 'orders');
+      __unsubOrders = onSnapshot(ref, (snap) => {
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        docs.sort((a, b) => {
+          const ta = a.createdAt?.toMillis?.() ?? 0;
+          const tb = b.createdAt?.toMillis?.() ?? 0;
+          return tb - ta; // neueste nach oben
+        });
+        renderOrders(docs);
+        // Auch ins Kanban einspeisen (bestehende Dashboard-Logik)
+        docs.forEach(o => {
+          if (typeof window.orders !== 'undefined' && !window.orders.find(x => x.id === (o.orderId || o.id))) {
+            const mapped = {
+              id:      o.orderId || ('FS-' + o.id.slice(0, 6).toUpperCase()),
+              name:    o.name    || '—',
+              tel:     o.phone   || o.tel || '',
+              addr:    o.address || '',
+              note:    o.notes   || '',
+              payment: o.payment || 'bar',
+              items:   (o.items  || []).map(i => ({
+                         name: i.name || '', desc: i.desc || '',
+                         e: i.e || '🍽️', size: i.size || '',
+                         catName: i.catName || '',
+                         price: Number(i.price) || 0,
+                         qty: Number(i.qty) || 1,
+                         subtotal: Number(i.subtotal) || +(Number(i.price) * Number(i.qty)).toFixed(2)
+                       })),
+              total:       Number(o.total)  || 0,
+              delFee:      Number(o.delFee) || 0,
+              freeDelivery:!!o.freeDelivery,
+              status:      'neu',
+              ts:          o.createdAt?.toDate ? o.createdAt.toDate() : new Date(),
+              tsStr:       o.createdAt?.toDate
+                             ? o.createdAt.toDate().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'})
+                             : new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'})
+            };
+            if (typeof processNewOrder === 'function') processNewOrder(mapped);
+          }
+        });
+        if (typeof renderDash === 'function') renderDash();
+      }, (err) => {
+        console.error('[DASH] onSnapshot error:', err);
+      });
+      console.info('[DASH] Listener gestartet');
+    } catch (e) {
+      console.error('[DASH] Listener Start Fehler:', e);
+    }
+  };
+
+  window.stopFirestoreListener = function stopFirestoreListener() {
+    if (__unsubOrders) {
+      __unsubOrders();
+      __unsubOrders = null;
+      console.info('[DASH] Listener gestoppt');
+    }
+  };
+
   console.info('[Firebase] ✅ Dashboard-Modul geladen');
 </script>
-  
+
 </body>
 </html>
