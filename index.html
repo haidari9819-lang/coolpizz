@@ -1342,215 +1342,140 @@ renderMenu();
 renderCart();
 document.addEventListener('click',()=>initAudio(),{once:true});
 </script>
-  <!-- Firebase – Menü: Bestellungen speichern -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, serverTimestamp }
-    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzSayAnmFhu_n3Mjinc9WpaSncsK7BvxxykWHQ",
-    authDomain: "coolpizzatacos-web.firebaseapp.com",
-    projectId: "coolpizzatacos-web",
-    storageBucket: "coolpizzatacos-web.firebasestorage.app",
-    messagingSenderId: "67081255221",
-    appId: "1:67081255221:web:b4e754cf4891d37616ec48",
-    measurementId: "G-5M4KJHR25D"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
-
-  const form = document.getElementById('order-form'); 
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const order = {
-        items: window.collectCartItems ? window.collectCartItems() : [],
-        name: document.getElementById('name')?.value || '',
-        phone: document.getElementById('phone')?.value || '',
-        address: document.getElementById('address')?.value || '',
-        notes: document.getElementById('notes')?.value || '',
-        total: Number(window.calculateTotal ? window.calculateTotal() : 0),
-        status: 'new',
-        createdAt: serverTimestamp()
-      };
-
-      try {
-        await addDoc(collection(db, 'orders'), order);
-        alert('Danke! Bestellung wurde gesendet ✅');
-        form.reset();
-      } catch (err) {
-        console.error('[ORDER ERROR]', err);
-        alert('Fehler beim Senden der Bestellung 😔');
-      }
-    });
-  } else {
-    console.warn("Kein Formular mit id='order-form' gefunden.");
-  }
-</script>
-  <!-- TEMP: Test-Order-Button, um Firestore-Schreiben zu prüfen -->
-<button id="test-order" style="position:fixed;bottom:16px;right:16px;z-index:9999">
-  Testbestellung senden
-</button>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, serverTimestamp }
-    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzSayAnmFhu_n3Mjinc9WpaSncsK7BvxxykWHQ",
-    authDomain: "coolpizzatacos-web.firebaseapp.com",
-    projectId: "coolpizzatacos-web",
-    storageBucket: "coolpizzatacos-web.firebasestorage.app",
-    messagingSenderId: "67081255221",
-    appId: "1:67081255221:web:b4e754cf4891d37616ec48",
-    measurementId: "G-5M4KJHR25D"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
-
-  const btn = document.getElementById('test-order');
-  btn?.addEventListener('click', async () => {
-    try {
-      await addDoc(collection(db, 'orders'), {
-        items: [{ name: 'TEST Margherita', qty: 1, price: 9.9 }],
-        name: 'Testkunde',
-        phone: '0000',
-        address: 'Teststraße 1',
-        notes: 'Demo',
-        total: 9.9,
-        status: 'new',
-        createdAt: serverTimestamp()
-      });
-      alert('Testbestellung gespeichert ✅');
-    } catch (e) {
-      console.error('Testbestellung FEHLER:', e);
-      alert('Fehler beim Test-Schreiben. Details in Console.');
-    }
-  });
-</script>
-  <!-- Firebase – Menü: Checkout speichern + Test-Button (einmalige Init) -->
 <script type="module">
   import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, serverTimestamp }
-    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
-  // 1) Deine Config
+  // ── Firebase Config ──────────────────────────────────────
   const firebaseConfig = {
-    apiKey: "AIzSayAnmFhu_n3Mjinc9WpaSncsK7BvxxykWHQ",
-    authDomain: "coolpizzatacos-web.firebaseapp.com",
-    projectId: "coolpizzatacos-web",
-    storageBucket: "coolpizzatacos-web.firebasestorage.app",
-    messagingSenderId: "67081255221",
-    appId: "1:67081255221:web:b4e754cf4891d37616ec48",
-    measurementId: "G-5M4KJHR25D"
+    apiKey:            "{{API_KEY}}",
+    authDomain:        "{{AUTH_DOMAIN}}",
+    projectId:         "{{PROJECT_ID}}",
+    storageBucket:     "{{STORAGE_BUCKET}}",
+    messagingSenderId: "{{MSG_SENDER_ID}}",
+    appId:             "{{APP_ID}}",
+    measurementId:     "{{MEASUREMENT_ID}}"
   };
 
-  // 2) Init sicher (kein doppeltes initializeApp)
+  // ── Init (einmalig) ─────────────────────────────────────
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   const db  = getFirestore(app);
 
-  // 3) Hilfsfunktionen
-  function readVal(sel) {
-    const el = document.querySelector(sel);
-    return el ? (el.value ?? "").toString().trim() : "";
-  }
-
-  // ⬇️ WICHTIG: Passe diese Selektoren an deine echten Eingabefelder (Checkout/Modal) an!
-  // Wenn du die IDs noch nicht weißt, lass sie so – dann werden Felder leer übergeben (nur zum Testen).
-  const SELECTORS = {
-    name:    '#name',      // z.B. '#custName'
-    phone:   '#phone',     // z.B. '#custPhone'
-    address: '#address',   // z.B. '#custAddress'
-    notes:   '#notes'      // z.B. '#orderNotes'
-  };
-
-  function getCartItems() {
+  // ── Hilfsfunktion: Feld lesen ───────────────────────────
+  // Liest aus den Checkout-Formular-Feldern (IDs wie im Modal)
+  function readField(selector) {
+    if (!selector) return "";
     try {
-      return (window.cart || []).map(c => ({
-        name:  c.name || c.title || '',
-        qty:   Number(c.qty || 1),
-        price: Number(c.price || 0),
-        cat:   c.cat || ''
-      }));
-    } catch (e) {
-      console.warn('Cart konnte nicht gelesen werden:', e);
-      return [];
+      const el = document.querySelector(selector);
+      return el ? (el.value ?? el.textContent ?? "").trim() : "";
+    } catch {
+      return "";
     }
   }
 
-  function calcTotal(items) {
-    return items.reduce((sum, i) => sum + (Number(i.price||0) * Number(i.qty||1)), 0);
+  // ── Order aus window.cart + Formularfeldern bauen ───────
+  // Formular-Felder (CoolPizza Menu Modal):
+  //   #fn = Name        #ft = Telefon
+  //   #fs = Straße      #fp = PLZ      #fc = Stadt
+  //   #fo = Notiz
+  function buildOrder() {
+    const rawCart = Array.isArray(window.cart) ? window.cart : [];
+
+    const items = rawCart.map(item => ({
+      name:  item.name  ?? "",
+      qty:   Number(item.qty)   || 1,
+      price: Number(item.price) || 0,
+      size:  item.size  ?? "",
+      ...(item.cat !== undefined ? { cat: item.cat } : {})
+    }));
+
+    const subtotal = items.reduce((sum, i) => sum + i.qty * i.price, 0);
+
+    // Adresse zusammensetzen aus Straße + PLZ + Stadt
+    const street = readField("#fs");
+    const plz    = readField("#fp");
+    const city   = readField("#fc");
+    const address = [street, plz, city].filter(Boolean).join(", ");
+
+    return {
+      items,
+      name:      readField("#fn"),
+      phone:     readField("#ft"),
+      address,
+      notes:     readField("#fo"),
+      payment:   window.coData?.payment ?? "",
+      total:     Math.round(subtotal * 100) / 100,
+      status:    "new",
+      createdAt: serverTimestamp()
+    };
   }
 
-  async function saveOrder(payload) {
-    return addDoc(collection(db, 'orders'), payload);
+  // ── Order absenden ───────────────────────────────────────
+  async function submitOrder(order) {
+    try {
+      const docRef = await addDoc(collection(db, "orders"), order);
+      console.info("[Firebase] ✅ Bestellung gespeichert:", docRef.id);
+      return docRef.id;
+    } catch (err) {
+      console.error("[Firebase] ❌ addDoc Fehler:", err);
+      alert("❌ Fehler beim Speichern der Bestellung:\n" + err.message);
+      return null;
+    }
   }
 
-  // 4) Checkout-Button anbinden
-  const checkoutBtn = document.getElementById('checkoutBtn');
-  if (!checkoutBtn) {
-    console.warn('checkoutBtn nicht gefunden – prüfe die ID deines Bestell-Buttons.');
-  } else {
-    checkoutBtn.addEventListener('click', async () => {
-      try {
-        const items = getCartItems();
-        const order = {
-          items,
-          name:    readVal(SELECTORS.name),
-          phone:   readVal(SELECTORS.phone),
-          address: readVal(SELECTORS.address),
-          notes:   readVal(SELECTORS.notes),
-          total:   calcTotal(items),
-          status: 'new',
+  // ── Auf das globale placeOrder hooken ───────────────────
+  // Wir wrappen window.placeOrder NACHDEM das Haupt-Script gelaufen ist.
+  // So bleibt die bestehende Logik (localStorage, Banner, etc.) erhalten
+  // und Firebase wird ZUSÄTZLICH ausgeführt.
+  window.addEventListener('load', () => {
+    const origPlaceOrder = window.placeOrder;
+
+    if (typeof origPlaceOrder === 'function') {
+      window.placeOrder = async function() {
+        // 1) Originale Funktion ausführen (localStorage, Banner, UI)
+        origPlaceOrder();
+
+        // 2) Firebase-Order parallel speichern
+        const order = buildOrder();
+        const docId = await submitOrder(order);
+        if (docId) {
+          console.info("[Firebase] Order ID:", docId);
+        }
+      };
+      console.info("[Firebase] ✅ placeOrder erfolgreich gewrappt.");
+    } else {
+      console.warn("[Firebase] ⚠️ window.placeOrder nicht gefunden – Firebase-Hook nicht aktiv.");
+    }
+
+    // ── Optionaler Test-Button ─────────────────────────────
+    const testBtn = document.getElementById("test-order");
+    if (testBtn) {
+      testBtn.addEventListener("click", async () => {
+        const demo = {
+          items:   [{ name: "Demo Pizza Margherita", qty: 1, price: 8.99, size: "32cm" }],
+          name:    "Test Kunde",
+          phone:   "0201-123456",
+          address: "Teststraße 1, 45127 Essen",
+          notes:   "Das ist eine Demo-Bestellung",
+          payment: "bar",
+          total:   8.99,
+          status:  "new",
           createdAt: serverTimestamp()
         };
+        const id = await submitOrder(demo);
+        if (id) alert("✅ Demo-Bestellung gespeichert! ID: " + id);
+      });
+    }
 
-        // ⚠️ Für einen ersten Test kannst du die Validierung auskommentieren,
-        // falls deine Felder noch keine IDs haben.
-        if (!items.length) { alert('Warenkorb ist leer.'); return; }
-        // if (!order.name || !order.phone || !order.address) {
-        //   alert('Bitte Name, Telefon und Adresse ausfüllen.');
-        //   return;
-        // }
-
-        await saveOrder(order);
-        alert('Danke! Bestellung wurde gesendet ✅');
-
-        if (Array.isArray(window.cart)) { window.cart.length = 0; }
-        if (typeof window.renderCart === 'function') { window.renderCart(); }
-      } catch (err) {
-        console.error('[ORDER ERROR]', err);
-        alert('Fehler beim Senden der Bestellung 😔 (siehe Console)');
-      }
-    });
-  }
-
-  // 5) (Optional) Test-Button anbinden, falls vorhanden
-  const testBtn = document.getElementById('test-order');
-  if (testBtn) {
-    testBtn.addEventListener('click', async () => {
-      try {
-        await saveOrder({
-          items: [{ name: 'TEST Margherita', qty: 1, price: 9.9 }],
-          name: 'Testkunde',
-          phone: '0000',
-          address: 'Teststraße 1',
-          notes: 'Demo',
-          total: 9.9,
-          status: 'new',
-          createdAt: serverTimestamp()
-        });
-        alert('Testbestellung gespeichert ✅');
-      } catch (e) {
-        console.error('Testbestellung FEHLER:', e);
-        alert('Fehler beim Test-Schreiben. Details in Console.');
-      }
-    });
-  }
+    // ── #checkoutBtn (Fallback-Listener) ──────────────────
+    // Falls jemand #checkoutBtn direkt klickt ohne placeOrder zu rufen
+    const checkoutBtn = document.getElementById("checkoutBtn");
+    if (!checkoutBtn) {
+      console.warn("[Firebase] ⚠️ #checkoutBtn nicht gefunden.");
+    }
+  });
 </script>
+
 </body>
 </html>
