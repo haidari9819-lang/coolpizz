@@ -1441,5 +1441,113 @@ function toast(msg){
 document.addEventListener('click',()=>initAudio(),{once:true});
 initAuth();
 </script>
+  <!-- Firebase – Admin: Live-Orders anzeigen -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+  import {
+    getFirestore, collection, query, orderBy, onSnapshot,
+    doc, updateDoc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzSayAnmFhu_n3Mjinc9WpaSncsK7BvxxykWHQ",
+    authDomain: "coolpizzatacos-web.firebaseapp.com",
+    projectId: "coolpizzatacos-web",
+    storageBucket: "coolpizzatacos-web.firebasestorage.app",
+    messagingSenderId: "67081255221",
+    appId: "1:67081255221:web:b4e754cf4891d37616ec48",
+    measurementId: "G-5M4KJHR25D"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const db   = getFirestore(app);
+  const auth = getAuth(app);
+
+  const loginDiv = document.getElementById('login');
+  const appDiv   = document.getElementById('app');
+  const tbody    = document.getElementById('ordersBody');
+
+  // Login
+  document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const pass  = document.getElementById('password').value.trim();
+    const msg   = document.getElementById('loginMsg');
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      msg.textContent = 'Erfolg! Lade Bestellungen…';
+    } catch (err) {
+      console.error(err); msg.textContent = 'Login fehlgeschlagen.';
+    }
+  });
+
+  // Ansicht & Listener
+  onAuthStateChanged(auth, (user) => {
+    if (user) { loginDiv.style.display = 'none'; appDiv.style.display = 'block'; listenOrders(); }
+    else { loginDiv.style.display = 'block'; appDiv.style.display = 'none'; }
+  });
+
+  function listenOrders() {
+    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    onSnapshot(q, (snap) => {
+      snap.docChanges().forEach((c) => {
+        if (c.type === 'added') renderRow(c.doc.id, c.doc.data());
+        if (c.type === 'modified') updateRow(c.doc.id, c.doc.data());
+      });
+    });
+  }
+
+  function renderRow(id, data) {
+    const tr = document.createElement('tr');
+    tr.id = "row-" + id;
+    const created = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+    const itemsHtml = Array.isArray(data.items)
+      ? data.items.map(i => `<div>${i.qty || 1}× ${i.name}${i.variant ? " — " + i.variant : ""}</div>`).join('')
+      : (data.items ? JSON.stringify(data.items) : '-');
+
+    tr.innerHTML = `
+      <td>${created.toLocaleString()}</td>
+      <td>
+        <div><strong>${escape(data.name || '-')}</strong></div>
+        <div>${escape(data.phone || '')}</div>
+        <div>${escape(data.address || '')}</div>
+        <div>${escape(data.notes || '')}</div>
+      </td>
+      <td>${itemsHtml}</td>
+      <td><strong>${Number(data.total || 0).toFixed(2)} €</strong></td>
+      <td class="status">${escape(data.status || 'new')}</td>
+      <td class="actions">
+        acceptAkzeptieren</button>
+        doneErledigt</button>
+      </td>
+    `;
+
+    tr.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const action = btn.getAttribute('data-action');
+        const newStatus = action === 'accept' ? 'accepted' : 'done';
+        await updateDoc(doc(db, 'orders', id), {
+          status: newStatus,
+          updatedAt: serverTimestamp()
+        });
+      });
+    });
+
+    tbody.prepend(tr);
+  }
+
+  function updateRow(id, data) {
+    const tr = document.getElementById("row-" + id);
+    if (tr) tr.querySelector('.status').textContent = data.status || 'new';
+  }
+
+  function escape(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+</script>
+``
 </body>
 </html>
