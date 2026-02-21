@@ -1314,9 +1314,19 @@ function placeOrder(){
     localStorage.setItem('coolpizza_orders',JSON.stringify(existing.slice(0,200)));
   }catch(e){}
 
+  // Expose cart snapshot & coData for Firebase module BEFORE clearing
+  window._lastOrder = order;
+  window._lastCart  = [...cart];
+  window._lastCoData= {...coData};
+
   cart=[]; renderCart(); step=4; renderStep();
   showBanner(order);
+
+  // Signal Firebase module via custom event
+  document.dispatchEvent(new CustomEvent('coolpizza:orderplaced', { detail: order }));
 }
+// Expose globally so module script can wrap it
+window.placeOrder = placeOrder;
 function newOrder(){ closeMo(); step=1; coData={}; }
 
 /* =========================================
@@ -1344,10 +1354,10 @@ document.addEventListener('click',()=>initAudio(),{once:true});
 </script>
 
 <script type="module">
-  import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { initializeApp, getApps, getApp }           from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
   import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
-  // ── Firebase Config ──────────────────────────────────────
+  /* ── Firebase Config (Platzhalter ersetzen!) ─────────── */
   const firebaseConfig = {
     apiKey:            "{{API_KEY}}",
     authDomain:        "{{AUTH_DOMAIN}}",
@@ -1358,123 +1368,66 @@ document.addEventListener('click',()=>initAudio(),{once:true});
     measurementId:     "{{MEASUREMENT_ID}}"
   };
 
-  // ── Init (einmalig) ─────────────────────────────────────
+  /* ── Init (einmalig, doppelte Initialisierung verhindert) */
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   const db  = getFirestore(app);
 
-  // ── Hilfsfunktion: Feld lesen ───────────────────────────
-  // Liest aus den Checkout-Formular-Feldern (IDs wie im Modal)
-  function readField(selector) {
-    if (!selector) return "";
+  /* ── Order in Firestore speichern ───────────────────── */
+  async function submitToFirestore(orderData) {
     try {
-      const el = document.querySelector(selector);
-      return el ? (el.value ?? el.textContent ?? "").trim() : "";
-    } catch {
-      return "";
-    }
-  }
-
-  // ── Order aus window.cart + Formularfeldern bauen ───────
-  // Formular-Felder (CoolPizza Menu Modal):
-  //   #fn = Name        #ft = Telefon
-  //   #fs = Straße      #fp = PLZ      #fc = Stadt
-  //   #fo = Notiz
-  function buildOrder() {
-    const rawCart = Array.isArray(window.cart) ? window.cart : [];
-
-    const items = rawCart.map(item => ({
-      name:  item.name  ?? "",
-      qty:   Number(item.qty)   || 1,
-      price: Number(item.price) || 0,
-      size:  item.size  ?? "",
-      ...(item.cat !== undefined ? { cat: item.cat } : {})
-    }));
-
-    const subtotal = items.reduce((sum, i) => sum + i.qty * i.price, 0);
-
-    // Adresse zusammensetzen aus Straße + PLZ + Stadt
-    const street = readField("#fs");
-    const plz    = readField("#fp");
-    const city   = readField("#fc");
-    const address = [street, plz, city].filter(Boolean).join(", ");
-
-    return {
-      items,
-      name:      readField("#fn"),
-      phone:     readField("#ft"),
-      address,
-      notes:     readField("#fo"),
-      payment:   window.coData?.payment ?? "",
-      total:     Math.round(subtotal * 100) / 100,
-      status:    "new",
-      createdAt: serverTimestamp()
-    };
-  }
-
-  // ── Order absenden ───────────────────────────────────────
-  async function submitOrder(order) {
-    try {
-      const docRef = await addDoc(collection(db, "orders"), order);
-      console.info("[Firebase] ✅ Bestellung gespeichert:", docRef.id);
-      return docRef.id;
-    } catch (err) {
-      console.error("[Firebase] ❌ addDoc Fehler:", err);
-      alert("❌ Fehler beim Speichern der Bestellung:\n" + err.message);
-      return null;
-    }
-  }
-
-  // ── Auf das globale placeOrder hooken ───────────────────
-  // Wir wrappen window.placeOrder NACHDEM das Haupt-Script gelaufen ist.
-  // So bleibt die bestehende Logik (localStorage, Banner, etc.) erhalten
-  // und Firebase wird ZUSÄTZLICH ausgeführt.
-  window.addEventListener('load', () => {
-    const origPlaceOrder = window.placeOrder;
-
-    if (typeof origPlaceOrder === 'function') {
-      window.placeOrder = async function() {
-        // 1) Originale Funktion ausführen (localStorage, Banner, UI)
-        origPlaceOrder();
-
-        // 2) Firebase-Order parallel speichern
-        const order = buildOrder();
-        const docId = await submitOrder(order);
-        if (docId) {
-          console.info("[Firebase] Order ID:", docId);
-        }
+      const payload = {
+        items:     orderData.items   || [],
+        name:      orderData.name    || "",
+        phone:     orderData.tel     || orderData.phone || "",
+        address:   [orderData.str, orderData.plz, orderData.city].filter(Boolean).join(", "),
+        notes:     orderData.note    || "",
+        payment:   orderData.payment || "",
+        total:     orderData.total   || 0,
+        orderId:   orderData.id      || "",
+        status:    "new",
+        createdAt: serverTimestamp()
       };
-      console.info("[Firebase] ✅ placeOrder erfolgreich gewrappt.");
-    } else {
-      console.warn("[Firebase] ⚠️ window.placeOrder nicht gefunden – Firebase-Hook nicht aktiv.");
+      const docRef = await addDoc(collection(db, "orders"), payload);
+      console.info("[Firebase] ✅ Bestellung gespeichert — ID:", docRef.id);
+    } catch (err) {
+      console.error("[Firebase] ❌ Firestore-Fehler:", err.code, err.message);
     }
+  }
 
-    // ── Optionaler Test-Button ─────────────────────────────
-    const testBtn = document.getElementById("test-order");
+  /* ── Auf das 'coolpizza:orderplaced' Event hören ────── */
+  // placeOrder() dispatcht dieses Event mit der vollständigen
+  // Bestellstruktur als detail — kein Wrapping nötig, kein Timing-Problem.
+  document.addEventListener('coolpizza:orderplaced', (e) => {
+    submitToFirestore(e.detail);
+  });
+
+  /* ── Optionaler Test-Button ─────────────────────────── */
+  document.addEventListener('DOMContentLoaded', () => {
+    const testBtn = document.getElementById('test-order');
     if (testBtn) {
-      testBtn.addEventListener("click", async () => {
-        const demo = {
-          items:   [{ name: "Demo Pizza Margherita", qty: 1, price: 8.99, size: "32cm" }],
-          name:    "Test Kunde",
-          phone:   "0201-123456",
-          address: "Teststraße 1, 45127 Essen",
-          notes:   "Das ist eine Demo-Bestellung",
-          payment: "bar",
-          total:   8.99,
-          status:  "new",
-          createdAt: serverTimestamp()
-        };
-        const id = await submitOrder(demo);
-        if (id) alert("✅ Demo-Bestellung gespeichert! ID: " + id);
+      testBtn.addEventListener('click', async () => {
+        try {
+          const docRef = await addDoc(collection(db, 'orders'), {
+            items:     [{ name: 'Demo Pizza Margherita', qty: 1, price: 8.99, size: '32cm' }],
+            name:      'Test Kunde',
+            phone:     '0201-123456',
+            address:   'Teststraße 1, 45127 Essen',
+            notes:     'Demo-Bestellung',
+            payment:   'bar',
+            total:     8.99,
+            orderId:   'DEMO-' + Date.now(),
+            status:    'new',
+            createdAt: serverTimestamp()
+          });
+          alert('✅ Demo-Bestellung gespeichert!\nID: ' + docRef.id);
+        } catch (err) {
+          alert('❌ Fehler: ' + err.message);
+        }
       });
     }
-
-    // ── #checkoutBtn (Fallback-Listener) ──────────────────
-    // Falls jemand #checkoutBtn direkt klickt ohne placeOrder zu rufen
-    const checkoutBtn = document.getElementById("checkoutBtn");
-    if (!checkoutBtn) {
-      console.warn("[Firebase] ⚠️ #checkoutBtn nicht gefunden.");
-    }
   });
+
+  console.info("[Firebase] ✅ Modul geladen — wartet auf Bestellungen.");
 </script>
 
 </body>
