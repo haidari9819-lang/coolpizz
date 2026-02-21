@@ -1342,5 +1342,53 @@ renderMenu();
 renderCart();
 document.addEventListener('click',()=>initAudio(),{once:true});
 </script>
+  <!-- Firebase – Menü: Bestellungen speichern -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, serverTimestamp }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzSayAnmFhu_n3Mjinc9WpaSncsK7BvxxykWHQ",
+    authDomain: "coolpizzatacos-web.firebaseapp.com",
+    projectId: "coolpizzatacos-web",
+    storageBucket: "coolpizzatacos-web.firebasestorage.app",
+    messagingSenderId: "67081255221",
+    appId: "1:67081255221:web:b4e754cf4891d37616ec48",
+    measurementId: "G-5M4KJHR25D"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  const form = document.getElementById('order-form'); 
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const order = {
+        items: window.collectCartItems ? window.collectCartItems() : [],
+        name: document.getElementById('name')?.value || '',
+        phone: document.getElementById('phone')?.value || '',
+        address: document.getElementById('address')?.value || '',
+        notes: document.getElementById('notes')?.value || '',
+        total: Number(window.calculateTotal ? window.calculateTotal() : 0),
+        status: 'new',
+        createdAt: serverTimestamp()
+      };
+
+      try {
+        await addDoc(collection(db, 'orders'), order);
+        alert('Danke! Bestellung wurde gesendet ✅');
+        form.reset();
+      } catch (err) {
+        console.error('[ORDER ERROR]', err);
+        alert('Fehler beim Senden der Bestellung 😔');
+      }
+    });
+  } else {
+    console.warn("Kein Formular mit id='order-form' gefunden.");
+  }
+</script>
 </body>
 </html>
