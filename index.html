@@ -1432,5 +1432,125 @@ document.addEventListener('click',()=>initAudio(),{once:true});
     }
   });
 </script>
+  <!-- Firebase – Menü: Checkout speichern + Test-Button (einmalige Init) -->
+<script type="module">
+  import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, serverTimestamp }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  // 1) Deine Config
+  const firebaseConfig = {
+    apiKey: "AIzSayAnmFhu_n3Mjinc9WpaSncsK7BvxxykWHQ",
+    authDomain: "coolpizzatacos-web.firebaseapp.com",
+    projectId: "coolpizzatacos-web",
+    storageBucket: "coolpizzatacos-web.firebasestorage.app",
+    messagingSenderId: "67081255221",
+    appId: "1:67081255221:web:b4e754cf4891d37616ec48",
+    measurementId: "G-5M4KJHR25D"
+  };
+
+  // 2) Init sicher (kein doppeltes initializeApp)
+  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  // 3) Hilfsfunktionen
+  function readVal(sel) {
+    const el = document.querySelector(sel);
+    return el ? (el.value ?? "").toString().trim() : "";
+  }
+
+  // ⬇️ WICHTIG: Passe diese Selektoren an deine echten Eingabefelder (Checkout/Modal) an!
+  // Wenn du die IDs noch nicht weißt, lass sie so – dann werden Felder leer übergeben (nur zum Testen).
+  const SELECTORS = {
+    name:    '#name',      // z.B. '#custName'
+    phone:   '#phone',     // z.B. '#custPhone'
+    address: '#address',   // z.B. '#custAddress'
+    notes:   '#notes'      // z.B. '#orderNotes'
+  };
+
+  function getCartItems() {
+    try {
+      return (window.cart || []).map(c => ({
+        name:  c.name || c.title || '',
+        qty:   Number(c.qty || 1),
+        price: Number(c.price || 0),
+        cat:   c.cat || ''
+      }));
+    } catch (e) {
+      console.warn('Cart konnte nicht gelesen werden:', e);
+      return [];
+    }
+  }
+
+  function calcTotal(items) {
+    return items.reduce((sum, i) => sum + (Number(i.price||0) * Number(i.qty||1)), 0);
+  }
+
+  async function saveOrder(payload) {
+    return addDoc(collection(db, 'orders'), payload);
+  }
+
+  // 4) Checkout-Button anbinden
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  if (!checkoutBtn) {
+    console.warn('checkoutBtn nicht gefunden – prüfe die ID deines Bestell-Buttons.');
+  } else {
+    checkoutBtn.addEventListener('click', async () => {
+      try {
+        const items = getCartItems();
+        const order = {
+          items,
+          name:    readVal(SELECTORS.name),
+          phone:   readVal(SELECTORS.phone),
+          address: readVal(SELECTORS.address),
+          notes:   readVal(SELECTORS.notes),
+          total:   calcTotal(items),
+          status: 'new',
+          createdAt: serverTimestamp()
+        };
+
+        // ⚠️ Für einen ersten Test kannst du die Validierung auskommentieren,
+        // falls deine Felder noch keine IDs haben.
+        if (!items.length) { alert('Warenkorb ist leer.'); return; }
+        // if (!order.name || !order.phone || !order.address) {
+        //   alert('Bitte Name, Telefon und Adresse ausfüllen.');
+        //   return;
+        // }
+
+        await saveOrder(order);
+        alert('Danke! Bestellung wurde gesendet ✅');
+
+        if (Array.isArray(window.cart)) { window.cart.length = 0; }
+        if (typeof window.renderCart === 'function') { window.renderCart(); }
+      } catch (err) {
+        console.error('[ORDER ERROR]', err);
+        alert('Fehler beim Senden der Bestellung 😔 (siehe Console)');
+      }
+    });
+  }
+
+  // 5) (Optional) Test-Button anbinden, falls vorhanden
+  const testBtn = document.getElementById('test-order');
+  if (testBtn) {
+    testBtn.addEventListener('click', async () => {
+      try {
+        await saveOrder({
+          items: [{ name: 'TEST Margherita', qty: 1, price: 9.9 }],
+          name: 'Testkunde',
+          phone: '0000',
+          address: 'Teststraße 1',
+          notes: 'Demo',
+          total: 9.9,
+          status: 'new',
+          createdAt: serverTimestamp()
+        });
+        alert('Testbestellung gespeichert ✅');
+      } catch (e) {
+        console.error('Testbestellung FEHLER:', e);
+        alert('Fehler beim Test-Schreiben. Details in Console.');
+      }
+    });
+  }
+</script>
 </body>
 </html>
