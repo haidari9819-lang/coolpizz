@@ -903,11 +903,7 @@ function checkStrength(pw){
 
 // Init auth — called at end of script so all functions are defined
 function initAuth(){
-  // ── RESET: Alle gespeicherten User + Sessions löschen ──
-  try{ localStorage.removeItem('cp_users'); }catch(e){}
-  try{ sessionStorage.removeItem('cp_current'); }catch(e){}
-  // ────────────────────────────────────────────────────────
-
+  // Rolle-Selector: Inhaber-Code Feld ein/ausblenden
   const roleEl=document.getElementById('regRole');
   if(roleEl){
     roleEl.addEventListener('change',()=>{
@@ -915,24 +911,38 @@ function initAuth(){
       if(og) og.style.display=roleEl.value==='owner'?'block':'none';
     });
   }
-  // Nach Reset: immer Login-Screen zeigen
-  document.getElementById('loginScreen').style.display='flex';
-  document.getElementById('app').classList.remove('show');
+  // Session prüfen — wenn noch angemeldet, direkt ins Dashboard
+  const saved=getCurrentUser();
+  if(saved){
+    currentUser=saved;
+    showApp();
+  }
 }
 
 /* =============================================
    LOGIN
 ============================================= */
-function doLogin(){
+async function doLogin(){
   const email=document.getElementById('loginEmail').value.trim().toLowerCase();
   const pw=document.getElementById('loginPw').value;
   if(!email||!pw){showErr('loginErr','⚠️ E-Mail und Passwort eingeben!');return;}
 
+  const btn=document.querySelector('#panelLogin .login-btn');
+  if(btn){btn.textContent='⏳ Anmelden…';btn.disabled=true;}
+
+  // 1) Firebase Auth Login
+  let fbResult = {ok:false, msg:''};
+  if(typeof window.fbLogin==='function'){
+    fbResult = await window.fbLogin(email, pw);
+  }
+
+  // 2) Lokale Benutzerdaten (Name, Rolle) aus localStorage
   const users=getUsers();
-  const user=users.find(u=>u.email===email&&u.password===pw);
-  if(user){
-    currentUser=user;
-    setCurrentUser(user);
+  const localUser=users.find(u=>u.email===email);
+
+  if(fbResult.ok && localUser){
+    currentUser=localUser;
+    setCurrentUser(localUser);
     loggedIn=true;
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('loginPw').value='';
@@ -942,10 +952,25 @@ function doLogin(){
     else document.getElementById('notifBanner').style.display='flex';
     startPolling();
     renderDash();
-    toast(`👋 Willkommen, ${user.name}!`);
+    toast(`👋 Willkommen, ${localUser.name}!`);
+  } else if(fbResult.ok && !localUser){
+    // Firebase OK aber kein lokaler Eintrag → Fallback-User erstellen
+    const fbUser={id:'fb-'+Date.now(),name:email.split('@')[0],email,password:'',role:'admin',createdAt:new Date().toISOString()};
+    const users2=getUsers(); users2.push(fbUser); saveUsers(users2);
+    currentUser=fbUser; setCurrentUser(fbUser); loggedIn=true;
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('loginPw').value='';
+    document.getElementById('app').classList.add('show');
+    updateTopbarUser();
+    if(Notification.permission==='granted') setNotifGranted();
+    else document.getElementById('notifBanner').style.display='flex';
+    startPolling(); renderDash();
+    toast(`👋 Willkommen!`);
   } else {
-    showErr('loginErr','❌ E-Mail oder Passwort falsch!');
+    showErr('loginErr', fbResult.msg || '❌ E-Mail oder Passwort falsch!');
   }
+
+  if(btn){btn.textContent='🔐 Anmelden';btn.disabled=false;}
 }
 
 function showApp(){
@@ -974,10 +999,11 @@ function updateTopbarUser(){
   }
 }
 
-function logout(){
+async function logout(){
   loggedIn=false;currentUser=null;
   sessionStorage.removeItem('cp_current');
   clearInterval(pollTimer);
+  if(typeof window.fbLogout==='function') await window.fbLogout();
   document.getElementById('app').classList.remove('show');
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginEmail').value='';
@@ -988,7 +1014,7 @@ function logout(){
 /* =============================================
    REGISTER
 ============================================= */
-function doRegister(){
+async function doRegister(){
   const name=document.getElementById('regName').value.trim();
   const email=document.getElementById('regEmail').value.trim().toLowerCase();
   const pw=document.getElementById('regPw').value;
@@ -1002,18 +1028,30 @@ function doRegister(){
   if(pw!==pw2){showErr('registerErr','❌ Passwörter stimmen nicht überein!');return;}
   if(role==='owner'&&ownerCode!==OWNER_CODE){showErr('registerErr','❌ Inhaber-Code ist falsch!');return;}
 
+  const btn=document.querySelector('#panelRegister .login-btn');
+  if(btn){btn.textContent='⏳ Konto erstellen…';btn.disabled=true;}
+
+  // Firebase Auth Registrierung
+  let fbResult = {ok:false, msg:''};
+  if(typeof window.fbRegister==='function'){
+    fbResult = await window.fbRegister(email, pw);
+  } else {
+    fbResult = {ok:true}; // Fallback: nur lokal
+  }
+
+  if(!fbResult.ok){
+    showErr('registerErr', fbResult.msg || '❌ Registrierung fehlgeschlagen!');
+    if(btn){btn.textContent='✨ Konto erstellen';btn.disabled=false;}
+    return;
+  }
+
+  // Lokal speichern (Name, Rolle)
   const users=getUsers();
-  if(users.find(u=>u.email===email)){showErr('registerErr','❌ Diese E-Mail ist bereits registriert!');return;}
+  if(!users.find(u=>u.email===email)){
+    users.push({id:'user-'+Date.now(),name,email,password:pw,role,createdAt:new Date().toISOString()});
+    saveUsers(users);
+  }
 
-  const newUser={
-    id:'user-'+Date.now(),
-    name,email,password:pw,role,
-    createdAt:new Date().toISOString()
-  };
-  users.push(newUser);
-  saveUsers(users);
-
-  // Clear form
   ['regName','regEmail','regPw','regPw2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('registerSuccess').classList.add('show');
   setTimeout(()=>{
@@ -1024,6 +1062,7 @@ function doRegister(){
     setTimeout(()=>document.getElementById('loginSuccess').classList.remove('show'),4000);
   },2000);
   toast('✅ Konto erstellt! Du kannst dich jetzt anmelden.');
+  if(btn){btn.textContent='✨ Konto erstellen';btn.disabled=false;}
 }
 
 function showErr(id,msg){
@@ -1470,18 +1509,24 @@ function deleteUser(id){
 function saveSettings(){
   toast('✅ Einstellungen gespeichert!');
 }
-function changePw(){
+async function changePw(){
   const p1=document.getElementById('newPw').value;
   const p2=document.getElementById('newPw2').value;
   if(!p1){toast('⚠️ Passwort eingeben!');return;}
   if(p1.length<6){toast('⚠️ Mindestens 6 Zeichen!');return;}
   if(p1!==p2){toast('❌ Passwörter stimmen nicht!');return;}
   if(!currentUser){toast('❌ Nicht eingeloggt!');return;}
+  // Firebase Auth Passwort ändern
+  if(typeof window.fbChangePassword==='function'){
+    const r=await window.fbChangePassword(p1);
+    if(!r.ok){toast(r.msg||'❌ Fehler!');return;}
+  }
+  // Auch lokal aktualisieren
   const users=getUsers();
   const idx=users.findIndex(u=>u.id===currentUser.id);
   if(idx>=0){users[idx].password=p1;saveUsers(users);currentUser.password=p1;setCurrentUser(currentUser);}
   document.getElementById('newPw').value='';document.getElementById('newPw2').value='';
-  toast('✅ Passwort geändert!');
+  toast('✅ Passwort bei Firebase geändert!');
 }
 
 /* =============================================
@@ -1503,5 +1548,152 @@ function toast(msg){
 document.addEventListener('click',()=>initAudio(),{once:true});
 initAuth();
 </script>
+
+<script type="module">
+  import { initializeApp, getApps, getApp }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, limit }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+           signOut, onAuthStateChanged, updatePassword }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+
+  /* ── Firebase Config ───────────────────────────────── */
+  const firebaseConfig = {
+    apiKey:            "AIzaSyAmnFHu_n3Mjmic9WpaSncsK7BvxxyKWHQ",
+    authDomain:        "coolpizzatacos-web.firebaseapp.com",
+    projectId:         "coolpizzatacos-web",
+    storageBucket:     "coolpizzatacos-web.firebasestorage.app",
+    messagingSenderId: "67801522521",
+    appId:             "1:67801522521:web:097267b7fcb3624e16ec48",
+    measurementId:     "G-VE3CZ0X34T"
+  };
+
+  /* ── Init (einmalig) ─────────────────────────────── */
+  const fbApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const db    = getFirestore(fbApp);
+  const auth  = getAuth(fbApp);
+
+  /* ── Firestore: Neue Bestellungen in Echtzeit empfangen ── */
+  // Wird gestartet sobald Admin eingeloggt ist
+  let unsubscribeOrders = null;
+
+  function startFirestoreListener(){
+    if(unsubscribeOrders) return; // bereits aktiv
+    const q = query(collection(db, 'orders'), orderBy('createdAt','desc'), limit(50));
+    unsubscribeOrders = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach(change => {
+        if(change.type === 'added'){
+          const data = change.doc.data();
+          const o = {
+            id:       data.orderId || ('FS-' + change.doc.id.slice(0,6).toUpperCase()),
+            name:     data.name    || '—',
+            tel:      data.phone   || data.tel || '',
+            addr:     data.address || '',
+            note:     data.notes   || '',
+            payment:  data.payment || 'bar',
+            items:    (data.items  || []).map(i => ({
+                        name:     i.name    || '',
+                        desc:     i.desc    || '',
+                        e:        i.e       || '🍽️',
+                        size:     i.size    || '',
+                        catName:  i.catName || '',
+                        price:    Number(i.price) || 0,
+                        qty:      Number(i.qty)   || 1,
+                        subtotal: Number(i.subtotal) || +(Number(i.price)*Number(i.qty)).toFixed(2)
+                      })),
+            total:    Number(data.total)  || 0,
+            delFee:   Number(data.delFee) || 0,
+            freeDelivery: !!data.freeDelivery,
+            status:   'neu',
+            ts:       data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+            tsStr:    data.createdAt?.toDate
+                        ? data.createdAt.toDate().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+                        : new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+          };
+          // Nur einfügen wenn noch nicht vorhanden (BroadcastChannel könnte es schon haben)
+          if(typeof window.orders !== 'undefined' && !window.orders.find(x=>x.id===o.id)){
+            if(typeof processNewOrder === 'function') processNewOrder(o);
+            if(typeof renderDash === 'function') renderDash();
+          }
+        }
+      });
+    }, (err) => {
+      console.error('[Firebase] Firestore onSnapshot Fehler:', err.code, err.message);
+    });
+    console.info('[Firebase] ✅ Firestore Echtzeit-Listener aktiv');
+  }
+
+  function stopFirestoreListener(){
+    if(unsubscribeOrders){ unsubscribeOrders(); unsubscribeOrders=null; }
+  }
+
+  /* ── Firebase Auth: Registrieren ─────────────────── */
+  window.fbRegister = async function(email, password){
+    try{
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      console.info('[Firebase] ✅ Registriert:', cred.user.uid);
+      return { ok: true, uid: cred.user.uid };
+    } catch(e){
+      console.error('[Firebase] Registrierung Fehler:', e.code, e.message);
+      const msg = {
+        'auth/email-already-in-use': '❌ Diese E-Mail ist bereits registriert!',
+        'auth/invalid-email':        '❌ Ungültige E-Mail-Adresse!',
+        'auth/weak-password':        '❌ Passwort zu schwach (mind. 6 Zeichen)!'
+      }[e.code] || '❌ ' + e.message;
+      return { ok: false, msg };
+    }
+  };
+
+  /* ── Firebase Auth: Anmelden ──────────────────────── */
+  window.fbLogin = async function(email, password){
+    try{
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      console.info('[Firebase] ✅ Angemeldet:', cred.user.uid);
+      return { ok: true, uid: cred.user.uid };
+    } catch(e){
+      console.error('[Firebase] Login Fehler:', e.code, e.message);
+      const msg = {
+        'auth/invalid-credential':   '❌ E-Mail oder Passwort falsch!',
+        'auth/user-not-found':        '❌ Kein Konto mit dieser E-Mail!',
+        'auth/wrong-password':        '❌ Falsches Passwort!',
+        'auth/too-many-requests':     '❌ Zu viele Versuche. Bitte warte kurz.',
+        'auth/invalid-email':         '❌ Ungültige E-Mail-Adresse!'
+      }[e.code] || '❌ ' + e.message;
+      return { ok: false, msg };
+    }
+  };
+
+  /* ── Firebase Auth: Abmelden ─────────────────────── */
+  window.fbLogout = async function(){
+    stopFirestoreListener();
+    await signOut(auth);
+    console.info('[Firebase] ✅ Abgemeldet');
+  };
+
+  /* ── Firebase Auth: Passwort ändern ─────────────── */
+  window.fbChangePassword = async function(newPw){
+    if(!auth.currentUser) return { ok:false, msg:'❌ Nicht eingeloggt!' };
+    try{
+      await updatePassword(auth.currentUser, newPw);
+      return { ok: true };
+    } catch(e){
+      return { ok:false, msg: '❌ ' + e.message };
+    }
+  };
+
+  /* ── Auth State: Session persistent ──────────────── */
+  onAuthStateChanged(auth, (user) => {
+    if(user){
+      console.info('[Firebase] Auth Session aktiv:', user.email);
+      startFirestoreListener();
+    } else {
+      stopFirestoreListener();
+    }
+  });
+
+  console.info('[Firebase] ✅ Dashboard-Modul geladen');
+</script>
+
 </body>
 </html>
