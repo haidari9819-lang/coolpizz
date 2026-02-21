@@ -903,6 +903,11 @@ function checkStrength(pw){
 
 // Init auth — called at end of script so all functions are defined
 function initAuth(){
+  // ── RESET: Alle gespeicherten User + Sessions löschen ──
+  try{ localStorage.removeItem('cp_users'); }catch(e){}
+  try{ sessionStorage.removeItem('cp_current'); }catch(e){}
+  // ────────────────────────────────────────────────────────
+
   const roleEl=document.getElementById('regRole');
   if(roleEl){
     roleEl.addEventListener('change',()=>{
@@ -910,12 +915,9 @@ function initAuth(){
       if(og) og.style.display=roleEl.value==='owner'?'block':'none';
     });
   }
-  // Check if already logged in via session
-  const saved=getCurrentUser();
-  if(saved){
-    currentUser=saved;
-    showApp();
-  }
+  // Nach Reset: immer Login-Screen zeigen
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('app').classList.remove('show');
 }
 
 /* =============================================
