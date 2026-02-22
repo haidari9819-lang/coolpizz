@@ -289,8 +289,8 @@ button{cursor:pointer;font-family:inherit;border:none;transition:all .18s;}
 .btn-deliver:hover{background:var(--green);color:#fff;}
 .btn-done{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.22);}
 .btn-done:hover{background:var(--blue);color:#fff;}
-.btn-del{background:rgba(248,113,113,.08);color:#f87171;border:1px solid rgba(248,113,113,.18);flex:none;width:32px;}
-.btn-del:hover{background:rgba(248,113,113,.2);}
+.btn-print{background:rgba(139,92,246,.1);color:#a78bfa;border:1px solid rgba(139,92,246,.22);flex:none;width:32px;}
+.btn-print:hover{background:rgba(139,92,246,.25);}
 .col-empty{text-align:center;padding:20px;color:var(--muted);font-size:12px;}
 
 /* Right column */
@@ -728,6 +728,24 @@ button{cursor:pointer;font-family:inherit;border:none;transition:all .18s;}
               </div>
               <button class="form-btn" onclick="saveSettings()">💾 Einstellungen speichern</button>
             </div>
+
+            <div class="setting-card">
+              <h4>📋 Menü-Info (erscheint live im Online-Menü)</h4>
+              <div class="form-group"><label>🛵 Lieferzeit</label><input id="mi-lieferzeit" placeholder="z.B. 30–45 Min"></div>
+              <div class="form-group"><label>💶 Kostenlose Lieferung ab (€)</label><input id="mi-freeDel" type="number" step="0.5" placeholder="z.B. 15"></div>
+              <div class="form-group"><label>📍 Liefergebiet</label><input id="mi-gebiet" placeholder="z.B. Essen & Umgebung"></div>
+              <div class="form-group"><label>📞 Telefon</label><input id="mi-tel" placeholder="z.B. 0201 – XXX XXXX"></div>
+              <div class="form-group"><label>📧 E-Mail</label><input id="mi-email" placeholder="z.B. info@coolpizza.de"></div>
+              <div class="form-group"><label>📍 Adresse</label><input id="mi-adresse" placeholder="z.B. Musterstraße 1, 45127 Essen"></div>
+              <div class="form-group"><label>🚗 Parken</label><input id="mi-parken" placeholder="z.B. Kostenlose Parkplätze"></div>
+              <div style="margin-bottom:10px"><strong>🕐 Öffnungszeiten</strong></div>
+              <div class="form-group"><label>Mo – Fr</label><input id="mi-oez-mofr" placeholder="z.B. 11:00 – 22:00"></div>
+              <div class="form-group"><label>Sa – So</label><input id="mi-oez-saso" placeholder="z.B. 11:00 – 23:00"></div>
+              <div class="form-group"><label>🎉 Feiertage</label><input id="mi-oez-ft" placeholder="z.B. 12:00 – 21:00"></div>
+              <button class="form-btn" onclick="saveMenuInfo()" style="background:var(--green);border-color:var(--green);color:#fff;">💾 Speichern &amp; Live veröffentlichen</button>
+              <div id="mi-status" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
+            </div>
+
             <div class="setting-card">
               <h4>🔐 Passwort ändern</h4>
               <div class="form-group"><label>Neues Passwort</label><input type="password" id="newPw" placeholder="Neues Passwort"></div>
@@ -847,6 +865,7 @@ let soundOn = true;
 let notifGranted = false;
 let popupTimer = null;
 let audioCtx = null;
+let ringInterval = null;   // dauert bis Bestellung angenommen wird
 let adminProdFilter = 'all';
 let dragSrc = null;
 let prodIdCounter = 200;
@@ -1112,8 +1131,14 @@ function loadOrders(){
     const raw = localStorage.getItem('coolpizza_orders');
     if(!raw) return;
     const loaded = JSON.parse(raw);
-    const newOrders = loaded.filter(lo => !orders.find(o => o.id === lo.id));
+    // Nur wirklich neue IDs hinzufügen — Status bestehender Bestellungen NICHT überschreiben
+    const newOrders = loaded.filter(lo => !orders.find(o => o.id === lo.id || (lo.fsDocId && o.fsDocId === lo.fsDocId)));
     newOrders.forEach(o => processNewOrder(o));
+    // Status-Updates für bereits bekannte Bestellungen übernehmen
+    loaded.forEach(lo => {
+      const existing = orders.find(o => o.id === lo.id || (lo.fsDocId && o.fsDocId === lo.fsDocId));
+      if(existing && lo.status !== 'neu') existing.status = lo.status;
+    });
     if(newOrders.length) renderDash();
   } catch(e) {}
 }
@@ -1201,10 +1226,31 @@ function showNotifPopup(o){
   const sb=document.getElementById('soundBtn');sb.classList.add('ringing');
   setTimeout(()=>sb.classList.remove('ringing'),700);
   if(popupTimer)clearTimeout(popupTimer);
-  popupTimer=setTimeout(()=>p.classList.remove('show'),8000);
+  // Popup bleibt offen bis Bestellung angenommen wird
 }
-function dismissNotifPopup(){document.getElementById('notifPopup').classList.remove('show');}
-function fireNotif(o){playDing();showNotifPopup(o);sendBrowserNotif(o);}
+function dismissNotifPopup(){
+  // Nur manuell schließen wenn keine offenen neu-Bestellungen mehr
+  const hasNew = orders.some(o=>o.status==='neu');
+  if(!hasNew){ stopRinging(); document.getElementById('notifPopup').classList.remove('show'); }
+}
+function startRinging(){
+  if(ringInterval) return; // läuft schon
+  playDing();
+  ringInterval = setInterval(()=>{
+    // Prüfen ob noch neu-Bestellungen vorhanden
+    const hasNew = orders.some(o=>o.status==='neu');
+    if(!hasNew){ stopRinging(); return; }
+    playDing();
+    const sb=document.getElementById('soundBtn');
+    sb.classList.add('ringing');
+    setTimeout(()=>sb.classList.remove('ringing'),700);
+  }, 4000); // alle 4 Sekunden klingeln
+}
+function stopRinging(){
+  if(ringInterval){ clearInterval(ringInterval); ringInterval=null; }
+  document.getElementById('notifPopup').classList.remove('show');
+}
+function fireNotif(o){ startRinging(); showNotifPopup(o); sendBrowserNotif(o); }
 
 /* =============================================
    TAB SWITCHING
@@ -1250,9 +1296,9 @@ function tkHTML(o){
   const pC={bar:'pay-bar',karte:'pay-karte',paypal:'pay-paypal',apple:'pay-apple'}[o.payment]||'pay-bar';
   const pL={bar:'💵 Bar',karte:'💳 EC-Karte',paypal:'🅿️ PayPal',apple:'📱 Apple Pay'}[o.payment]||'💵 Bar';
   let acts='';
-  if(o.status==='neu') acts=`<button class="tk-btn btn-accept" onclick="adv('${o.id}')">✓ Annehmen</button><button class="tk-btn btn-del" onclick="delOrd('${o.id}')">✕</button>`;
-  else if(o.status==='zub') acts=`<button class="tk-btn btn-deliver" onclick="adv('${o.id}')">🛵 Unterwegs!</button><button class="tk-btn btn-del" onclick="delOrd('${o.id}')">✕</button>`;
-  else acts=`<button class="tk-btn btn-done" onclick="delOrd('${o.id}')">✓ Archivieren</button>`;
+  if(o.status==='neu') acts=`<button class="tk-btn btn-accept" onclick="adv('${o.id}')">✓ Annehmen</button><button class="tk-btn btn-print" onclick="printReceipt(orders.find(x=>x.id==='${o.id}'))" title="Quittung drucken">🖨️</button><button class="tk-btn btn-del" onclick="delOrd('${o.id}')">✕</button>`;
+  else if(o.status==='zub') acts=`<button class="tk-btn btn-deliver" onclick="adv('${o.id}')">🛵 Unterwegs!</button><button class="tk-btn btn-print" onclick="printReceipt(orders.find(x=>x.id==='${o.id}'))" title="Quittung drucken">🖨️</button><button class="tk-btn btn-del" onclick="delOrd('${o.id}')">✕</button>`;
+  else acts=`<button class="tk-btn btn-done" onclick="delOrd('${o.id}')">✓ Archivieren</button><button class="tk-btn btn-print" onclick="printReceipt(orders.find(x=>x.id==='${o.id}'))" title="Quittung drucken">🖨️</button>`;
 
   // Artikel-Details vollständig rendern
   const itemsHtml = (o.items||[]).map(i => {
@@ -1295,10 +1341,16 @@ function tkHTML(o){
 }
 function adv(id){
   const o=orders.find(x=>x.id===id); if(!o)return;
+  const wasNeu = o.status==='neu';
   if(o.status==='neu') o.status='zub';
   else if(o.status==='zub') o.status='fer';
+  // Klingeln stoppen wenn keine neu-Bestellungen mehr übrig
+  const stillNew = orders.some(x=>x.status==='neu');
+  if(!stillNew) stopRinging();
   renderDash(); toast(`✅ ${id} aktualisiert`);
   syncOrders();
+  // Quittung drucken wenn Bestellung angenommen wird
+  if(wasNeu) printReceipt(o);
 }
 function delOrd(id){
   orders=orders.filter(x=>x.id!==id);
@@ -1308,6 +1360,119 @@ function syncOrders(){
   try{
     const toSave=orders.map(o=>Object.assign({},o,{ts:o.ts instanceof Date?o.ts.toISOString():o.ts}));
     localStorage.setItem('coolpizza_orders',JSON.stringify(toSave));
+  }catch(e){}
+}
+
+/* =============================================
+   EPSON TM-m30II — QUITTUNGSDRUCK
+   Kompatibel mit: Epson TM-m30II (BT/USB/LAN)
+   Methode: Browser window.print() mit Thermal-CSS
+   Für direkte ESC/POS: QZ Tray oder Epson ePOS SDK
+============================================= */
+function printReceipt(o){
+  const pL={bar:'Bar',karte:'EC-Karte',paypal:'PayPal',apple:'Apple Pay'};
+  const now=new Date().toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const itemsHtml=(o.items||[]).map(i=>{
+    const sub=i.subtotal??(+(i.price*i.qty).toFixed(2));
+    return `<tr><td>${i.qty}x ${i.name}${i.size?' ('+i.size+')':''}</td><td style="text-align:right">€${sub.toFixed(2).replace('.',',')}</td></tr>`;
+  }).join('');
+  const delRow=o.delFee>0?`<tr><td>Liefergebühr</td><td style="text-align:right">€${o.delFee.toFixed(2).replace('.',',')}</td></tr>`:'';
+  const freeRow=o.freeDelivery?`<tr style="color:green"><td>✓ Kostenlose Lieferung</td><td style="text-align:right">€0,00</td></tr>`:'';
+
+  const receiptHtml=`<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+  @page { margin: 0; size: 80mm auto; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    width: 76mm;
+    margin: 0 auto;
+    padding: 4mm 2mm;
+    color: #000;
+  }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .logo { font-size: 20px; font-weight: 900; letter-spacing: 2px; }
+  .divider { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+  .divider2 { border: none; border-top: 2px solid #000; margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1px 0; vertical-align: top; }
+  .total-row td { font-weight: bold; font-size: 15px; padding-top: 4px; }
+  .info-block { margin: 3px 0; font-size: 12px; }
+  .tag { background:#000; color:#fff; padding:1px 4px; font-size:11px; margin-bottom:3px; display:inline-block; }
+  .footer { font-size: 11px; margin-top: 6px; }
+</style>
+</head>
+<body onload="window.print();setTimeout(()=>window.close(),800)">
+  <div class="center">
+    <div class="logo">🍕 COOLPIZZA</div>
+    <div style="font-size:11px">Musterstraße 1 · 45127 Essen</div>
+    <div style="font-size:11px">Tel: 0201 – XXX XXXX</div>
+  </div>
+  <hr class="divider2">
+  <div class="center bold" style="font-size:15px">LIEFERBESTELLUNG</div>
+  <div class="info-block center">${now}</div>
+  <hr class="divider">
+  <table>
+    <tr><td class="bold">Bestell-Nr.:</td><td style="text-align:right" class="bold">${o.id}</td></tr>
+    <tr><td>Kunde:</td><td style="text-align:right">${o.name}</td></tr>
+    ${o.tel?`<tr><td>Telefon:</td><td style="text-align:right">${o.tel}</td></tr>`:''}
+    ${o.addr?`<tr><td>Adresse:</td><td style="text-align:right">${o.addr}</td></tr>`:''}
+    <tr><td>Zahlung:</td><td style="text-align:right">${pL[o.payment]||o.payment||'—'}</td></tr>
+  </table>
+  <hr class="divider">
+  <table>
+    <tr><td colspan="2" class="bold" style="padding-bottom:3px">BESTELLUNG:</td></tr>
+    ${itemsHtml}
+  </table>
+  <hr class="divider">
+  <table>
+    ${delRow}
+    ${freeRow}
+    <tr class="total-row">
+      <td>GESAMT:</td>
+      <td style="text-align:right">€${(o.total||0).toFixed(2).replace('.',',')}</td>
+    </tr>
+  </table>
+  ${o.note?`<hr class="divider"><div class="info-block"><b>Anmerkung:</b> ${o.note}</div>`:''}
+  <hr class="divider2">
+  <div class="center footer">
+    <div>Vielen Dank für Ihre Bestellung!</div>
+    <div style="margin-top:2px">www.coolpizza.de</div>
+  </div>
+</body></html>`;
+
+  // Drucker-Fenster öffnen
+  const win=window.open('','_blank','width=320,height=600,scrollbars=no,toolbar=no,menubar=no');
+  if(!win){ toast('⚠️ Popup blockiert – bitte Popup-Blocker deaktivieren!'); return; }
+  win.document.write(receiptHtml);
+  win.document.close();
+  toast('🖨️ Quittung wird gedruckt...');
+}
+// Beim Laden aus localStorage auch fsDocId wiederherstellen
+function loadOrdersFromStorage(){
+  try{
+    const raw=localStorage.getItem('coolpizza_orders');
+    if(!raw) return;
+    const loaded=JSON.parse(raw);
+    loaded.forEach(lo=>{
+      // Bereits vorhandene Bestellung? Status aus Storage übernehmen
+      const existing=orders.find(o=>o.id===lo.id || (lo.fsDocId && o.fsDocId===lo.fsDocId));
+      if(existing){
+        // Status aus localStorage aktualisieren (zuverlässiger als Firestore-Status)
+        existing.status=lo.status;
+        return;
+      }
+      // Neue Bestellung aus Storage (kein Firestore-Trigger nötig)
+      const o=Object.assign({},lo,{ts:lo.ts?new Date(lo.ts):new Date()});
+      if(!o.status) o.status='neu';
+      o.tsStr=o.tsStr||tStr(o.ts);
+      orders.push(o);
+      if(o.items) o.items.forEach(i=>{itemCounts[i.name]=(itemCounts[i.name]||0)+i.qty;});
+    });
+    renderDash();
   }catch(e){}
 }
 function renderTopItems(){
@@ -1342,7 +1507,7 @@ function openAdminSec(sec){
   if(sec==='cats')renderCatList();
   if(sec==='prods')renderProdAdmin();
   if(sec==='add')populateAddForm();
-  if(sec==='settings')loadSettings();
+  if(sec==='settings'){ loadSettings(); loadMenuInfo(); }
 }
 
 // ── CATEGORIES ──
@@ -1509,6 +1674,64 @@ function deleteUser(id){
 function saveSettings(){
   toast('✅ Einstellungen gespeichert!');
 }
+async function loadMenuInfo(){
+  try{
+    // Zuerst aus localStorage laden (schnell)
+    const local = localStorage.getItem('cp_menuInfo');
+    if(local){ applyMenuInfoToForm(JSON.parse(local)); }
+    // Dann aus Firestore aktualisieren (falls Firebase verfügbar)
+    if(typeof window._db !== 'undefined' && typeof window._getDoc !== 'undefined'){
+      const snap = await window._getDoc(window._doc(window._db,'settings','menuInfo'));
+      if(snap.exists()){ const d=snap.data(); applyMenuInfoToForm(d); localStorage.setItem('cp_menuInfo',JSON.stringify(d)); }
+    }
+  }catch(e){ console.warn('loadMenuInfo',e); }
+}
+function applyMenuInfoToForm(d){
+  const set = (id,v)=>{ const el=document.getElementById(id); if(el&&v!==undefined) el.value=v; };
+  set('mi-lieferzeit', d.lieferzeit);
+  set('mi-freeDel', d.freeDel);
+  set('mi-gebiet', d.gebiet);
+  set('mi-tel', d.tel);
+  set('mi-email', d.email);
+  set('mi-adresse', d.adresse);
+  set('mi-parken', d.parken);
+  set('mi-oez-mofr', d.oezMoFr);
+  set('mi-oez-saso', d.oezSaSo);
+  set('mi-oez-ft', d.oezFt);
+}
+async function saveMenuInfo(){
+  const get = id => document.getElementById(id)?.value?.trim() || '';
+  const data = {
+    lieferzeit: get('mi-lieferzeit'),
+    freeDel:    get('mi-freeDel'),
+    gebiet:     get('mi-gebiet'),
+    tel:        get('mi-tel'),
+    email:      get('mi-email'),
+    adresse:    get('mi-adresse'),
+    parken:     get('mi-parken'),
+    oezMoFr:    get('mi-oez-mofr'),
+    oezSaSo:    get('mi-oez-saso'),
+    oezFt:      get('mi-oez-ft'),
+    updatedAt:  new Date().toISOString()
+  };
+  // Lokal speichern
+  try{ localStorage.setItem('cp_menuInfo', JSON.stringify(data)); }catch(e){}
+  // In Firestore speichern (live ins Menü)
+  const statusEl = document.getElementById('mi-status');
+  if(typeof window._db !== 'undefined' && typeof window._setDoc !== 'undefined'){
+    try{
+      await window._setDoc(window._doc(window._db,'settings','menuInfo'), data, {merge:true});
+      toast('✅ Menü-Info live veröffentlicht!');
+      if(statusEl) statusEl.textContent = '✅ Zuletzt gespeichert: ' + new Date().toLocaleTimeString('de-DE');
+    }catch(e){
+      toast('⚠️ Lokal gespeichert (Firebase-Fehler)');
+      if(statusEl) statusEl.textContent = '⚠️ Nur lokal gespeichert – Firebase-Fehler: ' + e.message;
+    }
+  } else {
+    toast('✅ Lokal gespeichert!');
+    if(statusEl) statusEl.textContent = '✅ Lokal gespeichert (Firebase nicht verbunden)';
+  }
+}
 async function changePw(){
   const p1=document.getElementById('newPw').value;
   const p2=document.getElementById('newPw2').value;
@@ -1552,7 +1775,7 @@ initAuth();
 <script type="module">
   import { initializeApp, getApps, getApp }
     from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot }
+  import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, doc, setDoc, getDoc }
     from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
            signOut, onAuthStateChanged, updatePassword }
@@ -1573,6 +1796,11 @@ initAuth();
   const fbApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
   const db    = getFirestore(fbApp);
   const auth  = getAuth(fbApp);
+  // Globale Referenz für non-module Funktionen (saveMenuInfo, loadMenuInfo)
+  window._db     = db;
+  window._setDoc = setDoc;
+  window._doc    = doc;
+  window._getDoc = getDoc;
 
   // ⬇️ Fallbacks ergänzen (nur wenn nichts Eigenes existiert)
   window.orders = window.orders || [];
@@ -1671,37 +1899,40 @@ initAuth();
   // START: robust – zeigt auch alte Bestellungen ohne createdAt
   window.startFirestoreListener = function startFirestoreListener() {
     try {
-      // Falls schon ein Listener läuft, erst stoppen
       if (__unsubOrders) { __unsubOrders(); __unsubOrders = null; }
-      // 1) Ohne orderBy lesen, damit auch alte Orders ohne createdAt kommen
-      // 2) Danach clientseitig sortieren: createdAt (neueste zuerst)
       const ref = collection(db, 'orders');
       __unsubOrders = onSnapshot(ref, (snap) => {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         docs.sort((a, b) => {
           const ta = a.createdAt?.toMillis?.() ?? 0;
           const tb = b.createdAt?.toMillis?.() ?? 0;
-          return tb - ta; // neueste nach oben
+          return tb - ta;
         });
         renderOrders(docs);
-        // Auch ins Kanban einspeisen (bestehende Dashboard-Logik)
-        docs.forEach(o => {
-          if (typeof window.orders !== 'undefined' && !window.orders.find(x => x.id === (o.orderId || o.id))) {
+        // Ins Kanban einspeisen — NUR wirklich NEUE Bestellungen
+        // Bestellungen die bereits im Dashboard sind werden NICHT überschrieben
+        if (typeof window.orders !== 'undefined') {
+          docs.forEach(o => {
+            const fsId = o.orderId || ('FS-' + o.id.slice(0, 6).toUpperCase());
+            // Prüfen ob bereits vorhanden (per fsDocId ODER id)
+            const existing = window.orders.find(x => x.fsDocId === o.id || x.id === fsId);
+            if (existing) return; // bereits bekannt → Status NICHT überschreiben!
             const mapped = {
-              id:      o.orderId || ('FS-' + o.id.slice(0, 6).toUpperCase()),
-              name:    o.name    || '—',
-              tel:     o.phone   || o.tel || '',
-              addr:    o.address || '',
-              note:    o.notes   || '',
-              payment: o.payment || 'bar',
-              items:   (o.items  || []).map(i => ({
-                         name: i.name || '', desc: i.desc || '',
-                         e: i.e || '🍽️', size: i.size || '',
-                         catName: i.catName || '',
-                         price: Number(i.price) || 0,
-                         qty: Number(i.qty) || 1,
-                         subtotal: Number(i.subtotal) || +(Number(i.price) * Number(i.qty)).toFixed(2)
-                       })),
+              id:          fsId,
+              fsDocId:     o.id,
+              name:        o.name    || '—',
+              tel:         o.phone   || o.tel || '',
+              addr:        o.address || '',
+              note:        o.notes   || '',
+              payment:     o.payment || 'bar',
+              items:       (o.items  || []).map(i => ({
+                             name: i.name || '', desc: i.desc || '',
+                             e: i.e || '🍽️', size: i.size || '',
+                             catName: i.catName || '',
+                             price: Number(i.price) || 0,
+                             qty: Number(i.qty) || 1,
+                             subtotal: Number(i.subtotal) || +(Number(i.price) * Number(i.qty)).toFixed(2)
+                           })),
               total:       Number(o.total)  || 0,
               delFee:      Number(o.delFee) || 0,
               freeDelivery:!!o.freeDelivery,
@@ -1712,8 +1943,8 @@ initAuth();
                              : new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'})
             };
             if (typeof processNewOrder === 'function') processNewOrder(mapped);
-          }
-        });
+          });
+        }
         if (typeof renderDash === 'function') renderDash();
       }, (err) => {
         console.error('[DASH] onSnapshot error:', err);
