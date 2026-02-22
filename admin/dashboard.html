@@ -1897,6 +1897,16 @@ initAuth();
   }
 
   // START: robust – zeigt auch alte Bestellungen ohne createdAt
+  // Persistentes Set für bereits verarbeitete Firebase-Dokument-IDs
+  // Nutzt sessionStorage damit es einen Tab-Reload überlebt aber nicht dauerhaft gespeichert bleibt
+  const _seenFsIds = new Set(
+    JSON.parse(sessionStorage.getItem('_cpizza_seen_fs_ids') || '[]')
+  );
+  function _markFsSeen(fsDocId) {
+    _seenFsIds.add(fsDocId);
+    try { sessionStorage.setItem('_cpizza_seen_fs_ids', JSON.stringify([..._seenFsIds])); } catch(e) {}
+  }
+
   window.startFirestoreListener = function startFirestoreListener() {
     try {
       if (__unsubOrders) { __unsubOrders(); __unsubOrders = null; }
@@ -1910,13 +1920,17 @@ initAuth();
         });
         renderOrders(docs);
         // Ins Kanban einspeisen — NUR wirklich NEUE Bestellungen
-        // Bestellungen die bereits im Dashboard sind werden NICHT überschrieben
+        // FIX: Wir prüfen ZUERST gegen _seenFsIds (sessionStorage-persistent),
+        // dann erst gegen window.orders — so werden alte Bestellungen beim
+        // nächsten onSnapshot-Aufruf (z.B. neue Bestellung kommt rein) NICHT
+        // nochmal als neu behandelt.
         if (typeof window.orders !== 'undefined') {
           docs.forEach(o => {
             const fsId = o.orderId || ('FS-' + o.id.slice(0, 6).toUpperCase());
-            // Prüfen ob bereits vorhanden (per fsDocId ODER id)
+            // Prüfen ob bereits verarbeitet (per persistentem Set ODER window.orders)
+            if (_seenFsIds.has(o.id)) return; // bereits bekannt → überspringen!
             const existing = window.orders.find(x => x.fsDocId === o.id || x.id === fsId);
-            if (existing) return; // bereits bekannt → Status NICHT überschreiben!
+            if (existing) { _markFsSeen(o.id); return; } // bereits bekannt → Status NICHT überschreiben!
             const mapped = {
               id:          fsId,
               fsDocId:     o.id,
@@ -1942,7 +1956,10 @@ initAuth();
                              ? o.createdAt.toDate().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'})
                              : new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'})
             };
-            if (typeof processNewOrder === 'function') processNewOrder(mapped);
+            if (typeof processNewOrder === 'function') {
+              _markFsSeen(o.id); // Als verarbeitet markieren BEVOR processNewOrder
+              processNewOrder(mapped);
+            }
           });
         }
         if (typeof renderDash === 'function') renderDash();
