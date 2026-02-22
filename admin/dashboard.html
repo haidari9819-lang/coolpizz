@@ -1574,6 +1574,16 @@ initAuth();
   const db    = getFirestore(fbApp);
   const auth  = getAuth(fbApp);
 
+  // ⬇️ Fallbacks ergänzen (nur wenn nichts Eigenes existiert)
+  window.orders = window.orders || [];
+  window.renderDash = window.renderDash || function () {
+    const ul = document.getElementById('orders');
+    if (!ul) return; // falls du ein eigenes Layout hast, greift das nicht ein
+    ul.innerHTML = window.orders
+      .map(o => `<li>#${o.id || o.orderId || '(ohne Nr.)'} — ${o.name ?? ''} — ${o.status ?? 'new'} — ${(typeof o.total==='number'?o.total.toFixed(2):o.total ?? '')} €</li>`)
+      .join('');
+  };
+
   /* ── Firebase Auth: Registrieren ─────────────────── */
   window.fbRegister = async function(email, password){
     try{
