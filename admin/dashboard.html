@@ -1896,17 +1896,23 @@ initAuth();
     }
   }
 
-  // START: robust – zeigt auch alte Bestellungen ohne createdAt
-  // Persistentes Set für bereits verarbeitete Firebase-Dokument-IDs
-  // Nutzt sessionStorage damit es einen Tab-Reload überlebt aber nicht dauerhaft gespeichert bleibt
-  const _seenFsIds = new Set(
-    JSON.parse(sessionStorage.getItem('_cpizza_seen_fs_ids') || '[]')
-  );
-  function _markFsSeen(fsDocId) {
+  // Persistentes Set für bereits verarbeitete Firestore-IDs (überlebt Reload)
+  const _seenFsIds = new Set(JSON.parse(sessionStorage.getItem('_seenFsIds') || '[]'));
+  function _markSeen(fsDocId) {
     _seenFsIds.add(fsDocId);
-    try { sessionStorage.setItem('_cpizza_seen_fs_ids', JSON.stringify([..._seenFsIds])); } catch(e) {}
+    try { sessionStorage.setItem('_seenFsIds', JSON.stringify([..._seenFsIds])); } catch(e) {}
   }
 
+  // Firestore-Status → interner Kanban-Status
+  function _mapStatus(fsStatus) {
+    if (!fsStatus) return null; // kein Status → ignorieren (nicht als neu behandeln)
+    if (fsStatus === 'new'  || fsStatus === 'neu')        return 'neu';
+    if (fsStatus === 'prep' || fsStatus === 'zub' || fsStatus === 'preparing') return 'zub';
+    if (fsStatus === 'done' || fsStatus === 'fer' || fsStatus === 'delivered') return 'fer';
+    return null; // unbekannter Status → nicht einspeisen
+  }
+
+  // START: robust – zeigt auch alte Bestellungen ohne createdAt
   window.startFirestoreListener = function startFirestoreListener() {
     try {
       if (__unsubOrders) { __unsubOrders(); __unsubOrders = null; }
@@ -1919,18 +1925,23 @@ initAuth();
           return tb - ta;
         });
         renderOrders(docs);
-        // Ins Kanban einspeisen — NUR wirklich NEUE Bestellungen
-        // FIX: Wir prüfen ZUERST gegen _seenFsIds (sessionStorage-persistent),
-        // dann erst gegen window.orders — so werden alte Bestellungen beim
-        // nächsten onSnapshot-Aufruf (z.B. neue Bestellung kommt rein) NICHT
-        // nochmal als neu behandelt.
+        // Ins Kanban einspeisen — nur wirklich neue Bestellungen (status === 'new')
+        // Status wird direkt aus Firestore übernommen, KEIN clientseitiges Überschreiben
         if (typeof window.orders !== 'undefined') {
           docs.forEach(o => {
             const fsId = o.orderId || ('FS-' + o.id.slice(0, 6).toUpperCase());
-            // Prüfen ob bereits verarbeitet (per persistentem Set ODER window.orders)
-            if (_seenFsIds.has(o.id)) return; // bereits bekannt → überspringen!
+
+            // FIX 1: Nur Bestellungen mit status=new/neu aus Firestore einspeisen
+            const kanbanStatus = _mapStatus(o.status);
+            if (kanbanStatus !== 'neu') return; // Alte/fertige Bestellungen ignorieren
+
+            // FIX 2: sessionStorage-Schutz gegen Duplikate nach Reload
+            if (_seenFsIds.has(o.id)) return;
+
+            // FIX 3: Prüfen ob bereits im lokalen orders-Array vorhanden
             const existing = window.orders.find(x => x.fsDocId === o.id || x.id === fsId);
-            if (existing) { _markFsSeen(o.id); return; } // bereits bekannt → Status NICHT überschreiben!
+            if (existing) return; // bereits bekannt → Status NICHT überschreiben!
+
             const mapped = {
               id:          fsId,
               fsDocId:     o.id,
@@ -1950,16 +1961,14 @@ initAuth();
               total:       Number(o.total)  || 0,
               delFee:      Number(o.delFee) || 0,
               freeDelivery:!!o.freeDelivery,
-              status:      'neu',
+              status:      'neu', // Nur neue Bestellungen kommen hier an (gefiltert oben)
               ts:          o.createdAt?.toDate ? o.createdAt.toDate() : new Date(),
               tsStr:       o.createdAt?.toDate
                              ? o.createdAt.toDate().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'})
                              : new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'})
             };
-            if (typeof processNewOrder === 'function') {
-              _markFsSeen(o.id); // Als verarbeitet markieren BEVOR processNewOrder
-              processNewOrder(mapped);
-            }
+            _markSeen(o.id); // Als gesehen markieren
+            if (typeof processNewOrder === 'function') processNewOrder(mapped);
           });
         }
         if (typeof renderDash === 'function') renderDash();
