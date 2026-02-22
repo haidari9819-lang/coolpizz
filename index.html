@@ -427,15 +427,16 @@ footer{
 }
 .overlay.open{display:block;}
 .cart-drawer{
-  position:fixed;top:0;right:-480px;width:480px;max-width:100vw;
+  position:fixed;top:0;right:-520px;width:480px;max-width:100vw;
   height:100vh;z-index:700;
   background:var(--dark2);
   border-left:1px solid var(--border);
   display:flex;flex-direction:column;
   transition:right .35s cubic-bezier(.4,0,.2,1);
   box-shadow:-20px 0 60px rgba(0,0,0,.5);
+  visibility:hidden;
 }
-.cart-drawer.open{right:0;}
+.cart-drawer.open{right:0;visibility:visible;}
 .cart-hd{
   padding:20px 24px;
   background:linear-gradient(135deg,rgba(200,23,13,.2),rgba(244,123,32,.1));
@@ -726,7 +727,7 @@ footer{
 .toast.show{transform:translateX(-50%) translateY(0);}
 
 @media(max-width:600px){
-  .menu-grid{grid-template-columns:1fr;}
+  .menu-grid{grid-template-columns:1fr 1fr;}
   .cart-drawer{width:100vw;}
   .pay-opts{grid-template-columns:1fr 1fr;}
   .hero-stats{gap:16px;}
@@ -810,15 +811,15 @@ footer{
 
 <!-- INFO BAR -->
 <div class="info-bar">
-  <div class="info-item"><span class="ic">🛵</span> Lieferzeit: <strong>30–45 Min</strong></div>
+  <div class="info-item"><span class="ic">🛵</span> Lieferzeit: <strong><span data-mi="lieferzeit">30–45 Min</span></strong></div>
   <div class="info-divider"></div>
-  <div class="info-item"><span class="ic">💶</span> Kostenlose Lieferung <strong>ab €15</strong></div>
+  <div class="info-item"><span class="ic">💶</span> Kostenlose Lieferung <strong>ab €<span data-mi="freeDel">15</span></strong></div>
   <div class="info-divider"></div>
-  <div class="info-item"><span class="ic">📍</span> Essen &amp; Umgebung</div>
+  <div class="info-item"><span class="ic">📍</span> <span data-mi="gebiet">Essen &amp; Umgebung</span></div>
   <div class="info-divider"></div>
-  <div class="info-item"><span class="ic">🕐</span> Mo–So: <strong>11:00 – 22:00</strong></div>
+  <div class="info-item"><span class="ic">🕐</span> Mo–So: <strong><span data-mi="oezMoFr">11:00 – 22:00</span></strong></div>
   <div class="info-divider"></div>
-  <div class="info-item"><span class="ic">📞</span> <strong>0201 – XXX XXXX</strong></div>
+  <div class="info-item"><span class="ic">📞</span> <strong><span data-mi="tel">0201 – XXX XXXX</span></strong></div>
 </div>
 
 <!-- SEARCH -->
@@ -866,18 +867,18 @@ footer{
       <div class="footer-col">
         <h4>Öffnungszeiten</h4>
         <ul>
-          <li><span class="icon">🕐</span> Mo – Fr: 11:00 – 22:00</li>
-          <li><span class="icon">🕐</span> Sa – So: 11:00 – 23:00</li>
-          <li><span class="icon">🎉</span> Feiertage: 12:00 – 21:00</li>
+          <li><span class="icon">🕐</span> Mo – Fr: <span data-mi="oezMoFr">11:00 – 22:00</span></li>
+          <li><span class="icon">🕐</span> Sa – So: <span data-mi="oezSaSo">11:00 – 23:00</span></li>
+          <li><span class="icon">🎉</span> Feiertage: <span data-mi="oezFt">12:00 – 21:00</span></li>
         </ul>
       </div>
       <div class="footer-col">
         <h4>Kontakt</h4>
         <ul>
-          <li><span class="icon">📞</span> 0201 – XXX XXXX</li>
-          <li><span class="icon">📧</span> info@coolpizza.de</li>
-          <li><span class="icon">📍</span> Musterstraße 1, 45127 Essen</li>
-          <li><span class="icon">🚗</span> Kostenlose Parkplätze</li>
+          <li><span class="icon">📞</span> <span data-mi="tel">0201 – XXX XXXX</span></li>
+          <li><span class="icon">📧</span> <a data-mi="email" href="#">info@coolpizza.de</a></li>
+          <li><span class="icon">📍</span> <span data-mi="adresse">Musterstraße 1, 45127 Essen</span></li>
+          <li><span class="icon">🚗</span> <span data-mi="parken">Kostenlose Parkplätze</span></li>
         </ul>
       </div>
     </div>
@@ -927,61 +928,95 @@ footer{
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 /* =========================================
    MENU DATA
 ========================================= */
 const CATS = [
-  {id:'pizza',   name:'Pizza',          emoji:'🍕'},
-  {id:'broetchen',name:'Pizza-Brötchen',emoji:'🍞'},
-  {id:'tacos',   name:'Tacos',          emoji:'🌮'},
-  {id:'panini',  name:'Panini',         emoji:'🥪'},
-  {id:'extras',  name:'Extras',         emoji:'⭐'},
-  {id:'getraenke',name:'Getränke',      emoji:'🥤'},
+  {id:'pizza',      name:'Pizza',          emoji:'🍕'},
+  {id:'burger',     name:'Burger',         emoji:'🍔'},
+  {id:'schnitzel',  name:'Schnitzel',      emoji:'🥩'},
+  {id:'tacos',      name:'Tacos',          emoji:'🌮'},
+  {id:'salate',     name:'Salate',         emoji:'🥗'},
+  {id:'panini',     name:'Panini',         emoji:'🥪'},
+  {id:'fingerfood', name:'Fingerfood',     emoji:'🍟'},
+  {id:'broetchen',  name:'Pizza-Brötchen', emoji:'🍞'},
+  {id:'desserts',   name:'Desserts',       emoji:'🍨'},
+  {id:'getraenke',  name:'Getränke',       emoji:'🥤'},
+  {id:'extrasauce', name:'Extra Sauce',    emoji:'🫙'},
+  {id:'extras',     name:'Extras',         emoji:'⭐'},
+  {id:'coolbox',    name:'Cool Box',       emoji:'📦'},
 ];
 const MENU = [
   {id:'PRD-001',name:'MARGHERITA',cat:'pizza',desc:'Tomatensauce, Käse',veg:true,sizes:[{s:'26cm',p:5.99},{s:'32cm',p:8.99},{s:'40cm',p:10.99},{s:'60cm',p:16.99}],e:'🍕'},
   {id:'PRD-002',name:'SALAMI',cat:'pizza',desc:'mit Rindersalami',sizes:[{s:'26cm',p:8.99},{s:'32cm',p:10.99},{s:'40cm',p:16.99},{s:'60cm',p:31.99}],e:'🍕'},
-  {id:'PRD-003',name:'RUCOLA SPEZIAL',cat:'pizza',desc:'mit Parmaschinken, Cherrytomaten, Rucola, Parmesan',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:15.99},{s:'40cm',p:23.99},{s:'60cm',p:46.99}],e:'🍕'},
-  {id:'PRD-004',name:'BBQ SPEZIAL',cat:'pizza',desc:'BBQ-Sauce, Rinderhack, Mais, rote Zwiebeln',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'60cm',p:41.99}],e:'🍕'},
+  {id:'PRD-003',name:'RUCOLA SPEZIAL',cat:'pizza',desc:'mit Parmaschinken, Cherrytomaten, Rucola und Parmesan',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:15.99},{s:'40cm',p:23.99},{s:'60cm',p:46.99}],e:'🍕'},
+  {id:'PRD-004',name:'BBQ SPEZIAL',cat:'pizza',desc:'mit BBQ-Sauce, Rinderhack, Mais, roten Zwiebeln',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'60cm',p:41.99}],e:'🍕'},
   {id:'PRD-005',name:'HAWAII',cat:'pizza',desc:'mit Truthahnschinken und Ananas',sizes:[{s:'26cm',p:10.99},{s:'32cm',p:13.99},{s:'40cm',p:20.99},{s:'60cm',p:39.99}],e:'🍕'},
-  {id:'PRD-006',name:'PEPPER',cat:'pizza',desc:'Peperoni, Rindersalami, Mais, milde Peperoni',sizes:[{s:'26cm',p:10.99},{s:'32cm',p:13.99},{s:'40cm',p:20.99},{s:'50cm',p:39.99}],e:'🌶️'},
-  {id:'PRD-007',name:'BELLA ITALIA',cat:'pizza',desc:'Mozzarella, frische Tomaten, frisches Basilikum',veg:true,sizes:[{s:'26cm',p:10.99},{s:'32cm',p:13.99},{s:'40cm',p:20.99},{s:'50cm',p:39.99}],e:'🍕'},
-  {id:'PRD-008',name:'FRUTTI DI MARE',cat:'pizza',desc:'Thunfisch, Knoblauch, Meeresfrüchte',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🦐'},
-  {id:'PRD-009',name:'BIG BIRD',cat:'pizza',desc:'Broccoli, Ananas, Hähnchenbruststreifen',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:16.99},{s:'40cm',p:23.99},{s:'50cm',p:46.99}],e:'🍗'},
-  {id:'PRD-010',name:'COOL SPEZIAL',cat:'pizza',desc:'Rindersteak, Cherrytomaten, Broccoli, Sauce Hollandaise',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:16.99},{s:'40cm',p:23.99},{s:'50cm',p:46.99}],e:'🥩'},
-  {id:'PRD-011',name:'MR. GREEN',cat:'pizza',desc:'Spinat, Broccoli, Paprika, Mais, Champignons',veg:true,sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🥦'},
-  {id:'PRD-012',name:'SUCUK SPEZIAL',cat:'pizza',desc:'Sucuk, frische Tomaten, Fetakäse',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🍕'},
-  {id:'PRD-013',name:'LACHS',cat:'pizza',desc:'Lachs, Spinat, Crème Fraîche, Dillspitzen',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🐟'},
-  {id:'PRD-014',name:'CURRY SPEZIAL',cat:'pizza',desc:'Currysauce, Ananas, Hähnchenbruststreifen',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🍗'},
-  {id:'PRD-015',name:'VIER JAHRESZEITEN',cat:'pizza',desc:'Salami, Truthahnschinken, Champignons, Artischocken',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🍕'},
+  {id:'PRD-006',name:'PEPPER',cat:'pizza',desc:'mit Peperoni, Rindersalami, Mais, milden Peperoni',sizes:[{s:'26cm',p:10.99},{s:'32cm',p:13.99},{s:'40cm',p:20.99},{s:'50cm',p:39.99}],e:'🌶️'},
+  {id:'PRD-007',name:'BELLA ITALIA',cat:'pizza',desc:'mit Mozzarella, frischen Tomaten, frischem Basilikum',veg:true,sizes:[{s:'26cm',p:10.99},{s:'32cm',p:13.99},{s:'40cm',p:20.99},{s:'50cm',p:39.99}],e:'🍕'},
+  {id:'PRD-008',name:'FRUTTI DI MARE',cat:'pizza',desc:'mit Thunfisch, Knoblauch, Meeresfrüchten',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🦐'},
+  {id:'PRD-009',name:'BIG BIRD',cat:'pizza',desc:'mit Broccoli, Ananas und Hähnchenbruststreifen',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:16.99},{s:'40cm',p:23.99},{s:'50cm',p:46.99}],e:'🍗'},
+  {id:'PRD-010',name:'COOL SPEZIAL',cat:'pizza',desc:'mit Rindersteak, Cherrytomaten, Broccoli und Sauce Hollandaise',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:16.99},{s:'40cm',p:23.99},{s:'50cm',p:46.99}],e:'🥩'},
+  {id:'PRD-011',name:'MR.GREEN',cat:'pizza',desc:'mit Spinat, Broccoli, Paprika, Mais und Champignons',veg:true,sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🥦'},
+  {id:'PRD-012',name:'SUCUK SPEZIAL',cat:'pizza',desc:'mit Sucuk, frischen Tomaten und Fetakäse',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🍕'},
+  {id:'PRD-013',name:'LACHS',cat:'pizza',desc:'mit Lachs, Spinat, Crème Fraîche und Dillspitzen',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🐟'},
+  {id:'PRD-014',name:'CURRY SPEZIAL',cat:'pizza',desc:'mit Currysauce, Ananas, Hähnchenbruststreifen',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🍗'},
+  {id:'PRD-015',name:'VIER JAHRESZEITEN',cat:'pizza',desc:'mit Salami, Truthahnschinken, Champignons, Artischocken',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🍕'},
   {id:'PRD-016',name:'TONNO',cat:'pizza',desc:'mit Thunfisch und Zwiebeln',sizes:[{s:'26cm',p:11.99},{s:'32cm',p:14.99},{s:'40cm',p:21.99},{s:'50cm',p:41.99}],e:'🐟'},
-  {id:'PRD-017',name:'HOT TEXAS',cat:'pizza',desc:'Salsa-Sauce, Rinderhack, Mais, Jalapeños',sizes:[{s:'26cm',p:12.99},{s:'32cm',p:15.99},{s:'40cm',p:22.99},{s:'60cm',p:44.99}],e:'🌶️'},
-  {id:'PRD-018',name:'HOT DOG',cat:'pizza',desc:'Würstchen, Gewürzgurken, Remoulade, Röstzwiebeln',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:16.99},{s:'40cm',p:23.99},{s:'50cm',p:46.99}],e:'🌭'},
-  {id:'PRD-019',name:'WUNSCH PIZZA',cat:'pizza',desc:'Stelle deine eigene Pizza zusammen!',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:16.99},{s:'40cm',p:23.99},{s:'50cm',p:46.99}],e:'✨'},
-  {id:'PRD-020',name:'PIZZA-BRÖTCHEN LACHS',cat:'broetchen',desc:'8 Stück · Pizzasauce, Käse, Lachs',sizes:[{s:'8 Stück',p:11.99}],e:'🍞'},
-  {id:'PRD-021',name:'PIZZA-BRÖTCHEN MIX',cat:'broetchen',desc:'8 Stück · Rinderhack & Chicken, Pizzasauce, Käse',sizes:[{s:'8 Stück',p:10.99}],e:'🍞'},
-  {id:'PRD-022',name:'PIZZA-BRÖTCHEN CHICKEN',cat:'broetchen',desc:'8 Stück · Hähnchenbruststreifen, Pizzasauce, Käse',sizes:[{s:'8 Stück',p:7.99}],e:'🍗'},
-  {id:'PRD-023',name:'PIZZA-BRÖTCHEN RINDERHACK',cat:'broetchen',desc:'8 Stück · Rinderhack, Pizzasauce, Käse',sizes:[{s:'8 Stück',p:7.99}],e:'🥩'},
-  {id:'PRD-024',name:'PIZZA-BRÖTCHEN TRUTHAHNSCHINKEN',cat:'broetchen',desc:'8 Stück · Truthahnschinken, Pizzasauce, Käse',sizes:[{s:'8 Stück',p:7.49}],e:'🍞'},
-  {id:'PRD-025',name:'PIZZA-BRÖTCHEN THUNFISCH',cat:'broetchen',desc:'8 Stück · Thunfisch, Pizzasauce, Käse',sizes:[{s:'8 Stück',p:7.49}],e:'🐟'},
-  {id:'PRD-026',name:'PIZZA-BRÖTCHEN RINDERSALAMI',cat:'broetchen',desc:'8 Stück · Rindersalami, Pizzasauce, Käse',sizes:[{s:'8 Stück',p:7.49}],e:'🍕'},
-  {id:'PRD-027',name:'PIZZA-BRÖTCHEN MIT KÄSE',cat:'broetchen',desc:'8 Stück · Pizzasauce, Käse',veg:true,sizes:[{s:'8 Stück',p:7.49}],e:'🧀'},
-  {id:'PRD-028',name:'PIZZA-BRÖTCHEN RINDERPEPERONI',cat:'broetchen',desc:'8 Stück · Rinderpeperoni, Pizzasauce, Käse',sizes:[{s:'8 Stück',p:7.49}],e:'🌶️'},
-  {id:'PRD-029',name:'PIZZA-BRÖTCHEN SUCUK',cat:'broetchen',desc:'8 Stück · Sucuk, Pizzasauce, Käse',sizes:[{s:'8 Stück',p:7.49}],e:'🍞'},
-  {id:'PRD-030',name:'PIZZA-BRÖTCHEN KRÄUTERBUTTER',cat:'broetchen',desc:'8 Stück · Kräuterbutter',veg:true,sizes:[{s:'8 Stück',p:3.99}],e:'🧈'},
-  {id:'PRD-032',name:'MIX TACOS',cat:'tacos',desc:'Hähnchenbrustfilet & Rinderhack · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:9.99}],e:'🌮'},
-  {id:'PRD-033',name:'BEEF TACOS',cat:'tacos',desc:'Rinderhack · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:8.99}],e:'🥩'},
-  {id:'PRD-034',name:'CHICKEN TACOS',cat:'tacos',desc:'Hähnchenbrustfilet · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:8.99}],e:'🍗'},
-  {id:'PRD-035',name:'PUTEN TACOS',cat:'tacos',desc:'Putenschnitzel · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:8.99}],e:'🦃'},
-  {id:'PRD-036',name:'NUGGETS TACOS',cat:'tacos',desc:'Chicken Nuggets · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:7.99}],e:'🍗'},
-  {id:'PRD-037',name:'FALAFEL TACOS',cat:'tacos',desc:'Falafel · 2 Saucen, Pommes, Gouda',veg:true,sizes:[{s:'Portion',p:7.99}],e:'🧆'},
-  {id:'PRD-038',name:'SUCUK TACOS',cat:'tacos',desc:'Türkische Wurst · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:7.99}],e:'🌮'},
-  {id:'PRD-040',name:'BURGER PANINI',cat:'panini',desc:'Eisbergsalat, Gurken, Tomaten, Gouda, Sauce nach Wahl',sizes:[{s:'Stück',p:9.99}],e:'🥪'},
-  {id:'PRD-041',name:'BEEF PANINI',cat:'panini',desc:'Rinderhack, Eisbergsalat, Gurken, Tomaten, Gouda',sizes:[{s:'Stück',p:7.99}],e:'🥩'},
-  {id:'PRD-042',name:'CHICKEN PANINI',cat:'panini',desc:'Hähnchenbrust, Eisbergsalat, Gurken, Tomaten, Gouda',sizes:[{s:'Stück',p:7.99}],e:'🍗'},
-  {id:'PRD-043',name:'PUTEN PANINI',cat:'panini',desc:'Putenbruststreifen, Eisbergsalat, Gurken, Tomaten, Gouda',sizes:[{s:'Stück',p:7.99}],e:'🦃'},
-  {id:'PRD-050',name:'EXTRA KÄSE',cat:'extras',desc:'Extra Käse auf deine Pizza oder Brötchen',veg:true,sizes:[{s:'Standard',p:0.99}],e:'🧀'},
+  {id:'PRD-017',name:'HOT TEXAS',cat:'pizza',desc:'mit feuriger Salsa-Sauce, Rinderhack, Mais, Jalapeños',sizes:[{s:'26cm',p:12.99},{s:'32cm',p:15.99},{s:'40cm',p:22.99},{s:'60cm',p:44.99}],e:'🌶️'},
+  {id:'PRD-018',name:'HOT DOG',cat:'pizza',desc:'mit Würstchen, Gewürzgurken, Remoulade, Röstzwiebeln',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:16.99},{s:'40cm',p:23.99},{s:'50cm',p:46.99}],e:'🌭'},
+  {id:'PRD-019',name:'WUNSCH PIZZA',cat:'pizza',desc:'Stellen Sie Ihre Pizza nach Ihren Wünschen zusammen',sizes:[{s:'26cm',p:13.99},{s:'32cm',p:16.99},{s:'40cm',p:23.99},{s:'50cm',p:46.99}],e:'✨'},
+  {id:'PRD-020',name:'PIZZA-BRÖTCHEN LACHS',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:11.99}],e:'🍞'},
+  {id:'PRD-021',name:'PIZZA-BRÖTCHEN MIX',cat:'broetchen',desc:'Rinderhack & Chicken · Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:10.99}],e:'🍞'},
+  {id:'PRD-022',name:'PIZZA-BRÖTCHEN CHICKEN',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:7.99}],e:'🍗'},
+  {id:'PRD-023',name:'PIZZA-BRÖTCHEN RINDERHACK',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:7.99}],e:'🥩'},
+  {id:'PRD-024',name:'PIZZA-BRÖTCHEN TRUTHAHNSCHINKEN',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:7.49}],e:'🍞'},
+  {id:'PRD-025',name:'PIZZA-BRÖTCHEN THUNFISCH',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:7.49}],e:'🐟'},
+  {id:'PRD-026',name:'PIZZA-BRÖTCHEN RINDERSALAMI',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:7.49}],e:'🍕'},
+  {id:'PRD-027',name:'PIZZA-BRÖTCHEN MIT KÄSE',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',veg:true,sizes:[{s:'8 Stück',p:7.49}],e:'🧀'},
+  {id:'PRD-028',name:'PIZZA-BRÖTCHEN RINDERPEPERONI SALAMI',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:7.49}],e:'🌶️'},
+  {id:'PRD-029',name:'PIZZA-BRÖTCHEN SUCUK',cat:'broetchen',desc:'Alle gefüllt mit Pizzasauce, Käse (8 Stück)',sizes:[{s:'8 Stück',p:7.49}],e:'🍞'},
+  {id:'PRD-030',name:'PIZZA-BRÖTCHEN KRÄUTERBUTTER',cat:'broetchen',desc:'8 Stück, Kräuterbutter',veg:true,sizes:[{s:'8 Stück',p:3.99}],e:'🧈'},
+  {id:'PRD-031',name:'EXTRA KÄSE',cat:'extras',desc:'Zusatzoption',veg:true,sizes:[{s:'Standard',p:0.99}],e:'🧀'},
+  {id:'PRD-032',name:'MIX TACOS',cat:'tacos',desc:'mit Hähnchenbrustfilet, Rinderhack · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:9.99}],e:'🌮'},
+  {id:'PRD-033',name:'BEEF TACOS',cat:'tacos',desc:'mit Rinderhack · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:8.99}],e:'🥩'},
+  {id:'PRD-034',name:'CHICKEN TACOS',cat:'tacos',desc:'mit Hähnchenbrustfilet · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:8.99}],e:'🍗'},
+  {id:'PRD-035',name:'PUTEN TACOS',cat:'tacos',desc:'mit Putenschnitzel · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:8.99}],e:'🦃'},
+  {id:'PRD-036',name:'NUGGETS TACOS',cat:'tacos',desc:'mit Chicken Nuggets · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:7.99}],e:'🍗'},
+  {id:'PRD-037',name:'FALAFEL TACOS',cat:'tacos',desc:'mit Falafel · 2 Saucen, Pommes, Gouda',veg:true,sizes:[{s:'Portion',p:7.99}],e:'🧆'},
+  {id:'PRD-038',name:'SUCUK TACOS',cat:'tacos',desc:'mit Türkische Wurst · 2 Saucen, Pommes, Gouda',sizes:[{s:'Portion',p:7.99}],e:'🌮'},
+  {id:'PRD-039',name:'EXTRA SAUCE TACOS',cat:'extras',desc:'Sauce nach Wahl (Tacos)',sizes:[{s:'Standard',p:0.99}],e:'🫙'},
+  {id:'PRD-040',name:'BURGER PANINI',cat:'panini',desc:'Alle mit Eisbergsalat, Gurken, Tomaten, Gouda, Sauce nach Wahl',sizes:[{s:'Stück',p:9.99}],e:'🥪'},
+  {id:'PRD-041',name:'BEEF PANINI',cat:'panini',desc:'Alle mit Eisbergsalat, Gurken, Tomaten, Gouda, Sauce nach Wahl',sizes:[{s:'Stück',p:7.99}],e:'🥩'},
+  {id:'PRD-042',name:'CHICKEN PANINI',cat:'panini',desc:'Alle mit Eisbergsalat, Gurken, Tomaten, Gouda, Sauce nach Wahl',sizes:[{s:'Stück',p:7.99}],e:'🍗'},
+  {id:'PRD-043',name:'PUTEN PANINI',cat:'panini',desc:'Alle mit Eisbergsalat, Gurken, Tomaten, Gouda, Sauce nach Wahl',sizes:[{s:'Stück',p:7.99}],e:'🦃'},
+  {id:'PRD-070',name:'CLASSIC BURGER',cat:'burger',desc:'Rindfleisch-Patty, Salat, Tomaten, Zwiebeln, Sauce',sizes:[{s:'Stück',p:8.99}],e:'🍔'},
+  {id:'PRD-071',name:'CHEESE BURGER',cat:'burger',desc:'Rindfleisch-Patty, Gouda, Salat, Tomaten, Sauce',sizes:[{s:'Stück',p:9.49}],e:'🍔'},
+  {id:'PRD-072',name:'CHICKEN BURGER',cat:'burger',desc:'Hähnchenbrust, Salat, Tomaten, Sauce',sizes:[{s:'Stück',p:8.99}],e:'🍗'},
+  {id:'PRD-073',name:'BBQ BURGER',cat:'burger',desc:'Rindfleisch-Patty, BBQ-Sauce, Röstzwiebeln, Bacon',sizes:[{s:'Stück',p:10.49}],e:'🔥'},
+  {id:'PRD-080',name:'WIENER SCHNITZEL',cat:'schnitzel',desc:'Paniertes Hähnchenschnitzel mit Pommes & Salat',sizes:[{s:'Portion',p:10.99}],e:'🥩'},
+  {id:'PRD-081',name:'CHICKEN SCHNITZEL',cat:'schnitzel',desc:'Hähnchenschnitzel mit Beilage nach Wahl',sizes:[{s:'Portion',p:9.99}],e:'🍗'},
+  {id:'PRD-082',name:'PUTEN SCHNITZEL',cat:'schnitzel',desc:'Putenschnitzel mit Pommes & Sauce',sizes:[{s:'Portion',p:10.49}],e:'🦃'},
+  {id:'PRD-090',name:'CAESAR SALAT',cat:'salate',desc:'Romana, Croutons, Parmesan, Caesar-Dressing',veg:true,sizes:[{s:'Portion',p:7.99}],e:'🥗'},
+  {id:'PRD-091',name:'GRIECHISCHER SALAT',cat:'salate',desc:'Tomate, Gurke, Oliven, Feta, rote Zwiebeln',veg:true,sizes:[{s:'Portion',p:7.49}],e:'🥗'},
+  {id:'PRD-092',name:'CHICKEN SALAT',cat:'salate',desc:'Gemischter Salat mit Hähnchenbruststreifen',sizes:[{s:'Portion',p:9.49}],e:'🍗'},
+  {id:'PRD-100',name:'CHICKEN NUGGETS',cat:'fingerfood',desc:'6 Stück knusprige Chicken Nuggets mit Sauce',sizes:[{s:'6 Stück',p:4.99},{s:'12 Stück',p:8.99}],e:'🍗'},
+  {id:'PRD-101',name:'MOZZARELLA STICKS',cat:'fingerfood',desc:'6 Stück panierte Mozzarella Sticks mit Sauce',veg:true,sizes:[{s:'6 Stück',p:5.49}],e:'🧀'},
+  {id:'PRD-102',name:'ONION RINGS',cat:'fingerfood',desc:'Knusprige Zwiebelringe mit Dip',veg:true,sizes:[{s:'Portion',p:4.49}],e:'🧅'},
+  {id:'PRD-103',name:'JALAPEÑO POPPERS',cat:'fingerfood',desc:'6 Stück gefüllte Jalapeños mit Frischkäse',veg:true,sizes:[{s:'6 Stück',p:5.99}],e:'🌶️'},
+  {id:'PRD-104',name:'POMMES FRITES',cat:'fingerfood',desc:'Knusprige Pommes mit Sauce nach Wahl',veg:true,sizes:[{s:'Klein',p:2.99},{s:'Groß',p:3.99}],e:'🍟'},
+  {id:'PRD-110',name:'TIRAMISU',cat:'desserts',desc:'Klassisches Tiramisu mit Mascarpone',veg:true,sizes:[{s:'Portion',p:4.99}],e:'🍨'},
+  {id:'PRD-111',name:'BROWNIE',cat:'desserts',desc:'Schokoladenbrwonie mit Vanilleeis',veg:true,sizes:[{s:'Stück',p:3.99}],e:'🍫'},
+  {id:'PRD-112',name:'CHEESECAKE',cat:'desserts',desc:'New York Style Cheesecake',veg:true,sizes:[{s:'Stück',p:4.49}],e:'🍰'},
+  {id:'PRD-120',name:'KETCHUP SAUCE',cat:'extrasauce',desc:'Hausgemachter Ketchup',veg:true,sizes:[{s:'100ml',p:0.99}],e:'🫙'},
+  {id:'PRD-121',name:'BBQ SAUCE',cat:'extrasauce',desc:'Rauchige BBQ-Sauce',veg:true,sizes:[{s:'100ml',p:0.99}],e:'🫙'},
+  {id:'PRD-122',name:'KNOBLAUCH SAUCE',cat:'extrasauce',desc:'Cremige Knoblauchsauce',veg:true,sizes:[{s:'100ml',p:0.99}],e:'🫙'},
+  {id:'PRD-123',name:'CHILI SAUCE',cat:'extrasauce',desc:'Scharfe Chilisauce',veg:true,sizes:[{s:'100ml',p:0.99}],e:'🌶️'},
+  {id:'PRD-124',name:'RANCH SAUCE',cat:'extrasauce',desc:'Cremige Ranch-Sauce',veg:true,sizes:[{s:'100ml',p:0.99}],e:'🫙'},
+  {id:'PRD-130',name:'COOL BOX S',cat:'coolbox',desc:'Box für 2 Personen · Pizza + Getränke',sizes:[{s:'Box',p:19.99}],e:'📦'},
+  {id:'PRD-131',name:'COOL BOX M',cat:'coolbox',desc:'Box für 4 Personen · 2 Pizzen + Beilagen + Getränke',sizes:[{s:'Box',p:34.99}],e:'📦'},
+  {id:'PRD-132',name:'COOL BOX L',cat:'coolbox',desc:'Party Box für 6+ Personen · Alles inklusive',sizes:[{s:'Box',p:54.99}],e:'🎉'},
   {id:'PRD-051',name:'EXTRA SAUCE',cat:'extras',desc:'Sauce nach Wahl als Extra',sizes:[{s:'Standard',p:0.99}],e:'🥫'},
   {id:'PRD-052',name:'EXTRA SCHARF',cat:'extras',desc:'Extra Jalapeños oder scharfe Sauce',veg:true,sizes:[{s:'Standard',p:0.50}],e:'🌶️'},
   {id:'PRD-060',name:'COLA',cat:'getraenke',desc:'Coca-Cola 0,5l Flasche',sizes:[{s:'0,5l',p:2.50}],e:'🥤'},
@@ -1452,16 +1487,73 @@ document.addEventListener('click',()=>initAudio(),{once:true});
             status:    'new',
             createdAt: serverTimestamp()
           });
-          alert('✅ Demo-Bestellung gespeichert!\nID: ' + docRef.id);
-        } catch (err) {
+          alert('✅ Demo-Bestellung gespeichert!');
+        } catch(err) {
           alert('❌ Fehler: ' + err.message);
         }
       });
     }
   });
-
-  console.info("[Firebase] ✅ Modul geladen — wartet auf Bestellungen.");
 </script>
 
+<script type="module">
+  import { initializeApp, getApps, getApp }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getFirestore, doc, onSnapshot }
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey:            "AIzaSyAmnFHu_n3Mjmic9WpaSncsK7BvxxyKWHQ",
+    authDomain:        "coolpizzatacos-web.firebaseapp.com",
+    projectId:         "coolpizzatacos-web",
+    storageBucket:     "coolpizzatacos-web.firebasestorage.app",
+    messagingSenderId: "67801522521",
+    appId:             "1:67801522521:web:097267b7fcb3624e16ec48",
+    measurementId:     "G-VE3CZ0X34T"
+  };
+
+  const fbApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const db    = getFirestore(fbApp);
+
+  const FIELD_MAP = {
+    lieferzeit : (v, el) => { el.textContent = v; },
+    freeDel    : (v, el) => { el.textContent = v; },
+    gebiet     : (v, el) => { el.textContent = v; },
+    tel        : (v, el) => {
+      el.textContent = v;
+      if (el.tagName === 'A') el.href = 'tel:' + v.replace(/\s|–|-/g,'');
+    },
+    email      : (v, el) => {
+      el.textContent = v;
+      if (el.tagName === 'A') el.href = 'mailto:' + v;
+    },
+    adresse    : (v, el) => { el.textContent = v; },
+    parken     : (v, el) => { el.textContent = v; },
+    oezMoFr   : (v, el) => { el.textContent = v; },
+    oezSaSo   : (v, el) => { el.textContent = v; },
+    oezFt     : (v, el) => { el.textContent = v; },
+  };
+
+  function applyField(key, value) {
+    if (!value) return;
+    document.querySelectorAll(`[data-mi="${key}"]`).forEach(el => {
+      const fn = FIELD_MAP[key];
+      if (fn) fn(value, el);
+    });
+  }
+
+  onSnapshot(
+    doc(db, 'settings', 'menuInfo'),
+    (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data();
+      Object.keys(FIELD_MAP).forEach(key => applyField(key, d[key]));
+      console.info('[MenuSync] ✅ Store-Info aktualisiert:', new Date().toLocaleTimeString('de-DE'));
+    },
+    (err) => {
+      console.warn('[MenuSync] ⚠️ Firebase-Fehler, nutze Fallback-Texte:', err.message);
+    }
+  );
+</script>
 </body>
 </html>
